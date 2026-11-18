@@ -55,6 +55,7 @@ input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .plan-group { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--accent); font-weight: 700; margin: 14px 0 4px; }
 .plan-ex { cursor: pointer; }
 .plan-ex .chev { font-size: 16px; width: 10px; text-align: center; }
+.stat.inner { background: var(--card2); }
 .tag { font-size: 11px; color: var(--good); font-weight: 700; text-transform: uppercase; margin-left: 4px; }
 .panel { padding: 2px 0 10px; }
 .info img { width: 100%; aspect-ratio: 724 / 240; border-radius: 10px; display: block; margin: 8px 0; background: var(--card2); }
@@ -101,6 +102,7 @@ svg.chart { width: 100%; height: 160px; display: block; }
   <button data-tab="home"><span class="i">🏋️</span>Тренировки</button>
   <button data-tab="plan"><span class="i">📋</span>План</button>
   <button data-tab="exercises"><span class="i">📈</span>Прогресс</button>
+  <button data-tab="body"><span class="i">⚖️</span>Тело</button>
   <button data-tab="more"><span class="i">⚙️</span>Ещё</button>
 </nav>
 <div class="toast" id="toast"></div>
@@ -304,10 +306,33 @@ const dayName = ids => GROUPS.filter(g => ids.includes(g.id)).map(g => g.name).j
 const repsText = r => `${r[0]}–${r[1]}`;
 
 // ---------- data ----------
-const DEFAULT_PROFILE = { weight: 90, height: 185, age: 27 };
+const DEFAULT_PROFILE = { weight: 90, height: 185, age: 27, sex: null, activity: 'low', goal: 'keep' };
+// Daily activity outside the gym (three workouts a week are already counted in): [label, multiplier].
+const ACTIVITY = { low: ['Сидячая работа', 1.4], mid: ['Много хожу', 1.55], high: ['Физическая работа', 1.7] };
+// Goal: [label, calorie change, protein g per kg, fat g per kg, note].
+const GOALS = {
+  cut: ['Сушка', -0.15, 2.0, 0.8, 'дефицит около 15%'],
+  keep: ['Поддержание', 0, 1.6, 1.0, 'без дефицита и профицита'],
+  bulk: ['Набор', 0.10, 1.8, 1.0, 'профицит около 10%'],
+};
+// Daily targets as a hint: Mifflin-St Jeor resting energy, times activity, adjusted for the goal.
+function norms(p) {
+  if (p.sex !== 'm' && p.sex !== 'f') return null;
+  const bmr = 10 * p.weight + 6.25 * p.height - 5 * p.age + (p.sex === 'm' ? 5 : -161);
+  const tdee = bmr * ACTIVITY[p.activity][1], g = GOALS[p.goal];
+  const round = (v, step) => Math.round(v / step) * step;
+  const kcal = round(tdee * (1 + g[1]), 50), protein = round(p.weight * g[2], 5), fat = round(p.weight * g[3], 5);
+  const carbs = Math.max(0, round((kcal - protein * 4 - fat * 9) / 4, 5));
+  return { bmr: round(bmr, 10), tdee: round(tdee, 50), kcal, protein, fat, carbs, water: Math.round(p.weight * 0.033 * 10) / 10 };
+}
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const dayDate = d => d + 'T12:00:00'; // a body-weight entry's day as a date that formats correctly in any time zone
 let db = load();
 function withProfile(d) {
   d.profile = Object.assign({}, DEFAULT_PROFILE, d.profile);
+  if (!ACTIVITY[d.profile.activity]) d.profile.activity = DEFAULT_PROFILE.activity;
+  if (!GOALS[d.profile.goal]) d.profile.goal = DEFAULT_PROFILE.goal;
+  d.weights = (Array.isArray(d.weights) ? d.weights : []).filter(x => x && /^\d{4}-\d\d-\d\d$/.test(x.d) && x.w > 0).sort((a, b) => a.d.localeCompare(b.d));
   if (!d.plan || !Array.isArray(d.plan.days) || !d.plan.days.length) d.plan = JSON.parse(JSON.stringify(DEFAULT_PLAN));
   d.plan.days = d.plan.days.map(day => (Array.isArray(day) ? day : []).filter(id => GROUP[id]));
   if (!(d.plan.next >= 0 && d.plan.next < d.plan.days.length)) d.plan.next = 0;
@@ -539,7 +564,7 @@ function viewExercise(name) {
   return h + `</main>`;
 }
 
-function chart(pts) {
+function chart(pts, label = Math.round) {
   const W = 320, H = 160, P = { l: 34, r: 10, t: 10, b: 22 };
   const vals = pts.map(p => p.max);
   let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -551,7 +576,7 @@ function chart(pts) {
   const ticks = [lo, (lo + hi) / 2, hi];
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     ${ticks.map(t => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>
-      <text x="${P.l - 6}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">${Math.round(t)}</text>`).join('')}
+      <text x="${P.l - 6}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">${label(t)}</text>`).join('')}
     <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
     ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.max)}" r="3.5" fill="var(--accent)"/>`).join('')}
     <text x="${P.l}" y="${H - 6}" font-size="10" fill="var(--muted)">${esc(fmtDate(pts[0].date, false))}</text>
@@ -559,19 +584,47 @@ function chart(pts) {
   </svg>`;
 }
 
+function viewBody() {
+  const p = db.profile, ws = db.weights, n = norms(p);
+  const chips = (key, map) => `<div class="chips" style="margin-top:6px">${Object.entries(map).map(([k, v]) =>
+    `<button class="chip${p[key] === k ? ' on' : ''}" data-act="set-profile" data-key="${key}" data-val="${k}">${Array.isArray(v) ? v[0] : v}</button>`).join('')}</div>`;
+  let trend = 'Запиши вес, и здесь появится график.';
+  if (ws.length >= 2) {
+    const diff = Math.round((ws[ws.length - 1].w - ws[0].w) * 10) / 10;
+    trend = `${diff > 0 ? '+' : diff < 0 ? '−' : ''}${fmtNum(Math.abs(diff))} кг с ${fmtDate(dayDate(ws[0].d), false)}`;
+  } else if (ws.length === 1) trend = `Первая запись: ${fmtDate(dayDate(ws[0].d), false)}. График появится после второй.`;
+  let h = `<header><h1>Тело</h1></header><main>
+    <div class="card"><h2>Вес тела</h2>
+      <div class="row" style="align-items:baseline;margin-top:6px"><b style="font-size:32px;font-variant-numeric:tabular-nums">${fmtNum(p.weight)}</b><span class="muted">кг</span><span class="grow"></span><span class="muted small">${esc(trend)}</span></div>
+      ${ws.length >= 2 ? chart(ws.map(x => ({ date: dayDate(x.d), max: x.w })), t => fmtNum(Math.round(t * 10) / 10)) : ''}
+      <form id="weight" class="row" style="margin-top:10px"><input name="w" inputmode="decimal" placeholder="Вес сегодня, кг" autocomplete="off">
+        <button class="btn primary sm" type="submit" style="white-space:nowrap">Записать</button></form>
+      ${ws.slice(-5).reverse().map(x => `<div class="set"><span class="v" style="font-size:15px">${esc(fmtDate(dayDate(x.d)))}</span><span style="font-variant-numeric:tabular-nums">${fmtNum(x.w)} кг</span>
+        <button class="icon-btn del" data-act="del-weight" data-d="${x.d}" aria-label="Удалить запись">−</button></div>`).join('')}
+      <div class="muted small" style="margin-top:10px">Взвешивайся утром натощак раз в неделю, так цифры честнее.</div></div>
+    <div class="card"><h2>Обо мне</h2>
+      <div class="swap-title">Пол</div>${chips('sex', { m: 'Мужчина', f: 'Женщина' })}
+      <form id="profile"><div class="profile-grid" style="grid-template-columns:1fr 1fr auto;align-items:end">
+        <div><label>Рост, см</label><input name="height" inputmode="decimal" value="${fmtNum(p.height)}"></div>
+        <div><label>Возраст</label><input name="age" inputmode="numeric" value="${p.age}"></div>
+        <button class="btn sm" type="submit">Сохранить</button></div></form>
+      <div class="swap-title">Образ жизни вне зала</div>${chips('activity', ACTIVITY)}</div>
+    <div class="card"><h2>Норма на день</h2>
+      <div class="swap-title">Цель</div>${chips('goal', GOALS)}`;
+  if (!n) h += `<div class="muted" style="margin-top:12px">Выбери пол в блоке «Обо мне», и здесь появится расчёт.</div>`;
+  else h += `<div class="row" style="align-items:baseline;margin-top:14px"><b style="font-size:32px;font-variant-numeric:tabular-nums">${n.kcal}</b><span class="muted">ккал · ${GOALS[p.goal][4]}</span></div>
+      <div class="stats" style="margin:10px 0 0">
+        <div class="stat inner"><b>${n.protein} г</b><span>белки</span></div>
+        <div class="stat inner"><b>${n.fat} г</b><span>жиры</span></div>
+        <div class="stat inner"><b>${n.carbs} г</b><span>углеводы</span></div></div>
+      <div class="stat inner" style="margin-top:8px"><b>${fmtNum(n.water)} л</b><span>воды в день, в день тренировки на 0,5–1 л больше</span></div>
+      <div class="muted small" style="margin-top:12px">Это подсказка, а не назначение врача. Расчёт по формуле Миффлина — Сан Жеора для веса ${fmtNum(p.weight)} кг: в покое тело тратит около ${n.bmr} ккал, с твоей активностью и тремя тренировками в неделю около ${n.tdee} ккал. Точность примерно ±10%, поэтому сверяйся с дневником веса: если за две недели вес не идёт в нужную сторону, меняй калории на 150–200.</div>`;
+  return h + `</div></main>`;
+}
+
 function viewMore() {
   const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  const pr = db.profile;
   return `<header><h1>Ещё</h1></header><main>
-    <div class="card"><h2>Профиль</h2>
-      <form id="profile">
-        <div class="profile-grid">
-          <div><label>Вес, кг</label><input name="weight" inputmode="decimal" value="${fmtNum(pr.weight)}"></div>
-          <div><label>Рост, см</label><input name="height" inputmode="decimal" value="${fmtNum(pr.height)}"></div>
-          <div><label>Возраст</label><input name="age" inputmode="numeric" value="${pr.age}"></div>
-        </div>
-        <button class="btn primary" type="submit" style="margin-top:12px">Сохранить</button>
-      </form></div>
     ${standalone ? '' : `<div class="card"><h2>Установить на iPhone</h2><div class="muted" style="margin-top:6px">
       Открой эту страницу в Safari, нажми «Поделиться» (квадрат со стрелкой) и выбери «На экран Домой». Приложение будет открываться как обычное и работать без интернета.</div></div>`}
     <div class="card"><h2>Резервная копия</h2><div class="muted" style="margin:6px 0 12px">
@@ -589,6 +642,7 @@ function render() {
     : v === 'plan' ? viewPlan()
     : v === 'exercises' ? viewExercises()
     : v === 'exercise' ? viewExercise(state.param)
+    : v === 'body' ? viewBody()
     : v === 'more' ? viewMore() : viewHome();
   const tab = v === 'workout' || v === 'home' ? 'home' : v === 'exercise' ? 'exercises' : v;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
@@ -626,6 +680,16 @@ app.addEventListener('click', ev => {
       db.workouts.push(nw); save(); go('workout', nw.id); break;
     }
     case 'toggle-panel': openKey = openKey === el.dataset.key ? null : el.dataset.key; rerender(); break;
+    case 'set-profile': {
+      const key = el.dataset.key, val = el.dataset.val;
+      if (!({ sex: { m: 1, f: 1 }, activity: ACTIVITY, goal: GOALS })[key]?.[val]) return;
+      db.profile[key] = val; save(); rerender(); break;
+    }
+    case 'del-weight': {
+      db.weights = db.weights.filter(x => x.d !== el.dataset.d);
+      if (db.weights.length) db.profile.weight = db.weights[db.weights.length - 1].w;
+      save(); rerender(); break;
+    }
     case 'plan-swap': {
       const slot = el.dataset.slot, name = el.dataset.name;
       if (name === slot) delete db.plan.swaps[slot]; else db.plan.swaps[slot] = name;
@@ -686,10 +750,18 @@ app.addEventListener('submit', ev => {
   const f = ev.target, w = db.workouts.find(x => x.id === state.param);
   if (f.id === 'addex') return addExercise(w, f.name.value);
   if (f.id === 'profile') {
-    const weight = parseNum(f.weight.value), height = parseNum(f.height.value), age = parseInt(f.age.value, 10);
-    if (!(weight >= 20 && weight <= 400) || !(height >= 100 && height <= 250) || !(age >= 10 && age <= 110)) return toast('Проверь вес, рост и возраст');
-    db.profile = { weight, height, age };
-    save(); render(); return toast('Профиль сохранён');
+    const height = parseNum(f.height.value), age = parseInt(f.age.value, 10);
+    if (!(height >= 100 && height <= 250) || !(age >= 10 && age <= 110)) return toast('Проверь рост и возраст');
+    Object.assign(db.profile, { height, age });
+    save(); rerender(); return toast('Сохранено');
+  }
+  if (f.id === 'weight') {
+    const wv = Math.round(parseNum(f.w.value) * 10) / 10;
+    if (!(wv >= 20 && wv <= 400)) return toast('Укажи вес в килограммах');
+    const d = today();
+    db.weights = db.weights.filter(x => x.d !== d).concat({ d, w: wv }).sort((a, b) => a.d.localeCompare(b.d));
+    db.profile.weight = wv;
+    save(); rerender(); return toast('Вес записан');
   }
   const wt = parseNum(f.w.value), r = parseInt(f.r.value, 10);
   if (!(wt >= 0) || !(r > 0)) return toast('Укажи вес и повторы');
