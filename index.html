@@ -48,6 +48,18 @@ input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .set .v { flex: 1; font-variant-numeric: tabular-nums; font-size: 17px; }
 .addset { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; align-items: end; }
 .addset label { font-size: 12px; color: var(--muted); display: block; margin: 0 0 4px 2px; }
+.chip.on { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+.plan-ex { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; align-items: baseline; }
+.plan-ex .t { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 14px; }
+.plan-group { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--accent); font-weight: 700; margin: 14px 0 4px; }
+.target { font-size: 13px; color: var(--accent); margin-top: 2px; font-weight: 600; }
+.hint-up { font-size: 13px; color: var(--good); margin-top: 2px; font-weight: 600; }
+.rules { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+.rules li { margin-bottom: 6px; }
+.rules b { color: var(--text); }
+details summary { cursor: pointer; font-weight: 600; font-size: 18px; }
+a { color: var(--accent); }
+.btn:disabled { opacity: .5; }
 .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .profile-grid label { font-size: 12px; color: var(--muted); display: block; margin: 0 0 4px 2px; }
 .prev { font-size: 13px; color: var(--muted); margin-top: 2px; }
@@ -77,6 +89,7 @@ svg.chart { width: 100%; height: 160px; display: block; }
 <div id="app"></div>
 <nav id="nav">
   <button data-tab="home"><span class="i">🏋️</span>Тренировки</button>
+  <button data-tab="plan"><span class="i">📋</span>План</button>
   <button data-tab="exercises"><span class="i">📈</span>Прогресс</button>
   <button data-tab="more"><span class="i">⚙️</span>Ещё</button>
 </nav>
@@ -84,16 +97,69 @@ svg.chart { width: 100%; height: 160px; display: block; }
 <script>
 'use strict';
 const KEY = 'gym-diary-v1';
-const DEFAULT_EXERCISES = ['Жим лёжа', 'Присед со штангой', 'Становая тяга', 'Жим стоя', 'Подтягивания',
-  'Тяга штанги в наклоне', 'Тяга верхнего блока', 'Отжимания на брусьях', 'Жим гантелей на наклонной',
-  'Разводка гантелей', 'Сгибания на бицепс', 'Французский жим', 'Жим ногами', 'Выпады', 'Разгибания ног',
-  'Сгибания ног', 'Подъём на носки', 'Махи гантелями в стороны'];
+// Plan library. Exercises in each group go from most to least important,
+// so a shorter workout keeps the key ones. reps: [from, to], rest in minutes.
+const GROUPS = [
+  { id: 'chest', name: 'Грудь', n: 3, ex: [
+    { name: 'Жим лёжа', sets: 4, reps: [6, 8], rest: '2–3' },
+    { name: 'Жим гантелей на наклонной', sets: 3, reps: [8, 12], rest: '2' },
+    { name: 'Сведение рук в тренажёре', sets: 3, reps: [12, 15], rest: '1–1,5' },
+    { name: 'Отжимания на брусьях', sets: 3, reps: [8, 12], rest: '2' } ] },
+  { id: 'back', name: 'Спина', n: 3, ex: [
+    { name: 'Тяга штанги в наклоне', sets: 4, reps: [6, 8], rest: '2–3' },
+    { name: 'Тяга верхнего блока', sets: 3, reps: [8, 12], rest: '2' },
+    { name: 'Тяга горизонтального блока', sets: 3, reps: [8, 12], rest: '2' },
+    { name: 'Пуловер на верхнем блоке', sets: 3, reps: [12, 15], rest: '1–1,5' } ] },
+  { id: 'legs', name: 'Ноги', n: 4, ex: [
+    { name: 'Присед со штангой', sets: 4, reps: [6, 8], rest: '2–3' },
+    { name: 'Румынская тяга', sets: 3, reps: [8, 10], rest: '2–3' },
+    { name: 'Жим ногами', sets: 3, reps: [10, 12], rest: '2' },
+    { name: 'Сгибания ног', sets: 3, reps: [10, 15], rest: '1–1,5' },
+    { name: 'Подъём на носки', sets: 3, reps: [10, 15], rest: '1' } ] },
+  { id: 'shoulders', name: 'Плечи', n: 3, ex: [
+    { name: 'Жим гантелей сидя', sets: 4, reps: [8, 10], rest: '2' },
+    { name: 'Махи гантелями в стороны', sets: 4, reps: [12, 20], rest: '1' },
+    { name: 'Тяга к лицу на блоке', sets: 3, reps: [15, 20], rest: '1' },
+    { name: 'Разведения гантелей в наклоне', sets: 3, reps: [12, 15], rest: '1' } ] },
+  { id: 'biceps', name: 'Бицепс', n: 3, ex: [
+    { name: 'Сгибания на бицепс', sets: 3, reps: [8, 12], rest: '1,5' },
+    { name: 'Сгибания с гантелями на наклонной скамье', sets: 3, reps: [10, 12], rest: '1–1,5' },
+    { name: '«Молотки» с гантелями', sets: 3, reps: [10, 12], rest: '1–1,5' } ] },
+  { id: 'triceps', name: 'Трицепс', n: 3, ex: [
+    { name: 'Разгибания на верхнем блоке', sets: 3, reps: [10, 12], rest: '1,5' },
+    { name: 'Французский жим', sets: 3, reps: [8, 12], rest: '1,5' },
+    { name: 'Разгибания из-за головы на блоке', sets: 3, reps: [10, 15], rest: '1–1,5' } ] },
+  { id: 'abs', name: 'Пресс', n: 2, ex: [
+    { name: 'Скручивания на блоке', sets: 3, reps: [10, 15], rest: '1' },
+    { name: 'Подъём ног в висе', sets: 3, reps: [8, 15], rest: '1' } ] },
+];
+const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
+const MAX_EXERCISES = 7;
+const DEFAULT_PLAN = { days: [['shoulders', 'biceps'], ['back', 'legs'], ['chest', 'triceps']], next: 0 };
+const DEFAULT_EXERCISES = [...GROUPS.flatMap(g => g.ex.map(e => e.name)), 'Становая тяга', 'Подтягивания', 'Жим стоя', 'Выпады', 'Разгибания ног'];
+
+// Build the exercise list for a set of muscle groups: a group trained alone gets all its
+// exercises, otherwise its default count, trimmed so the workout stays at MAX_EXERCISES.
+function buildDay(ids) {
+  const groups = GROUPS.filter(g => ids.includes(g.id));
+  const counts = groups.map(g => groups.length === 1 ? g.ex.length : g.n);
+  const total = () => counts.reduce((a, b) => a + b, 0);
+  for (const floor of [2, 1]) {
+    while (total() > MAX_EXERCISES && Math.max(...counts) > floor) counts[counts.lastIndexOf(Math.max(...counts))]--;
+  }
+  return groups.map((g, i) => ({ group: g, ex: g.ex.slice(0, counts[i]) }));
+}
+const dayName = ids => GROUPS.filter(g => ids.includes(g.id)).map(g => g.name).join(', ');
+const repsText = r => `${r[0]}–${r[1]}`;
 
 // ---------- data ----------
 const DEFAULT_PROFILE = { weight: 90, height: 185, age: 27 };
 let db = load();
 function withProfile(d) {
   d.profile = Object.assign({}, DEFAULT_PROFILE, d.profile);
+  if (!d.plan || !Array.isArray(d.plan.days) || !d.plan.days.length) d.plan = JSON.parse(JSON.stringify(DEFAULT_PLAN));
+  d.plan.days = d.plan.days.map(day => (Array.isArray(day) ? day : []).filter(id => GROUP[id]));
+  if (!(d.plan.next >= 0 && d.plan.next < d.plan.days.length)) d.plan.next = 0;
   return d;
 }
 function load() {
@@ -157,7 +223,12 @@ function viewHome() {
   const list = sorted().filter(w => w.done);
   let h = `<header><h1>Тренировки</h1></header><main>`;
   if (a) h += `<div class="banner" data-act="open" data-id="${a.id}">▶ Продолжить тренировку · ${a.exercises.length} упр.</div>`;
-  else h += `<button class="btn primary" data-act="start" style="margin-bottom:12px">+ Начать тренировку</button>`;
+  else {
+    const n = db.plan.next, ids = db.plan.days[n];
+    if (ids.length) h += `<button class="btn primary" data-act="start-plan" data-day="${n}" style="margin-bottom:8px">▶ День ${n + 1}: ${esc(dayName(ids))}</button>
+      <button class="btn" data-act="start" style="margin-bottom:12px">Свободная тренировка</button>`;
+    else h += `<button class="btn primary" data-act="start" style="margin-bottom:12px">+ Начать тренировку</button>`;
+  }
   if (!list.length) h += `<div class="empty">Здесь появятся твои тренировки.<br>Нажми «Начать тренировку», когда придёшь в зал.</div>`;
   else {
     h += `<h3>История</h3>`;
@@ -165,6 +236,7 @@ function viewHome() {
       const sets = w.exercises.reduce((t, e) => t + e.sets.length, 0);
       h += `<div class="card list-item" data-act="open" data-id="${w.id}"><div class="grow">
         <h2>${esc(fmtDate(w.date))}</h2>
+        ${w.title ? `<div class="target">${esc(w.title)}</div>` : ''}
         <div class="muted">${w.exercises.map(e => esc(e.name)).join(' · ') || 'Без упражнений'}</div>
         <div class="muted small">${sets} подх. · ${fmtNum(Math.round(volume(w)))} кг общий тоннаж</div>
       </div><span class="chev">›</span></div>`;
@@ -179,12 +251,17 @@ function viewWorkout(id) {
   let h = `<header><button class="back" data-act="home">‹ Назад</button><span class="grow"></span>
     ${w.done ? '' : `<button class="btn primary sm" data-act="finish" data-id="${w.id}">Завершить</button>`}</header>
     <main><h1 style="font-size:26px;margin:0 0 4px">${esc(fmtDate(w.date))}</h1>
+    ${w.title ? `<div class="target" style="font-size:15px">${esc(w.title)}</div>` : ''}
     <div class="muted" style="margin-bottom:14px">${w.done ? 'Завершена' : 'Идёт тренировка'} · ${fmtNum(Math.round(volume(w)))} кг тоннаж</div>`;
   w.exercises.forEach((ex, i) => {
     const prev = historyFor(ex.name, w.id)[0];
     const best = bestWeight(ex.name, w.id);
     const last = ex.sets[ex.sets.length - 1] || (prev && prev.sets[0]) || null;
+    const t = ex.target;
+    const addWeight = t && prev && prev.sets.length >= t.sets && prev.sets.every(x => x.r >= t.reps[1]);
     h += `<div class="card"><div class="row"><div class="grow"><h2>${esc(ex.name)}</h2>
+      ${t ? `<div class="target">План: ${t.sets} × ${repsText(t.reps)} · отдых ${esc(t.rest)} мин · сделано ${ex.sets.length}/${t.sets}</div>` : ''}
+      ${addWeight ? `<div class="hint-up">↑ В прошлый раз все подходы по ${t.reps[1]}+ повторов: добавь 2,5–5 кг</div>` : ''}
       <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div></div>
       <button class="icon-btn" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
     ex.sets.forEach((s, j) => {
@@ -194,7 +271,7 @@ function viewWorkout(id) {
     });
     h += `<form class="addset" data-i="${i}">
       <div><label>Вес, кг</label><input name="w" inputmode="decimal" value="${last ? fmtNum(last.w) : ''}" placeholder="0"></div>
-      <div><label>Повторы</label><input name="r" inputmode="numeric" value="${last ? last.r : ''}" placeholder="0"></div>
+      <div><label>Повторы</label><input name="r" inputmode="numeric" value="${last ? last.r : ''}" placeholder="${t ? repsText(t.reps) : '0'}"></div>
       <button class="btn primary sm" type="submit">+ Подход</button></form></div>`;
   });
   h += `<div class="card"><form id="addex" class="row"><input name="name" list="exlist" placeholder="Название упражнения" autocomplete="off">
@@ -204,6 +281,44 @@ function viewWorkout(id) {
       .map(n => `<button class="chip" data-act="add-ex" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
   h += `<button class="btn danger" data-act="del-workout" data-id="${w.id}">Удалить тренировку</button>`;
   if (w.done) h += `<button class="btn" data-act="reopen" data-id="${w.id}" style="margin-top:8px">Продолжить эту тренировку</button>`;
+  return h + `</main>`;
+}
+
+function viewPlan() {
+  const busy = !!active();
+  let h = `<header><h1>План</h1></header><main>
+    <div class="muted" style="margin:0 4px 12px">${db.plan.days.length} тренировки в неделю. Отметь группы мышц для каждого дня, упражнения подберутся сами.</div>`;
+  db.plan.days.forEach((ids, d) => {
+    const day = buildDay(ids);
+    const nEx = day.reduce((a, g) => a + g.ex.length, 0), nSets = day.reduce((a, g) => a + g.ex.reduce((b, e) => b + e.sets, 0), 0);
+    h += `<div class="card"><div class="row"><h2 class="grow">День ${d + 1}${d === db.plan.next ? ' <span class="pr">СЛЕДУЮЩИЙ</span>' : ''}</h2></div>
+      <div class="chips">${GROUPS.map(g => `<button class="chip${ids.includes(g.id) ? ' on' : ''}" data-act="toggle-group" data-day="${d}" data-group="${g.id}">${g.name}</button>`).join('')}</div>`;
+    if (!day.length) h += `<div class="muted" style="margin-top:12px">Выбери хотя бы одну группу мышц.</div>`;
+    for (const g of day) {
+      h += `<div class="plan-group">${g.group.name}</div>`;
+      for (const e of g.ex) h += `<div class="plan-ex"><span class="grow">${esc(e.name)}</span><span class="t">${e.sets} × ${repsText(e.reps)}</span></div>`;
+    }
+    if (day.length) h += `<div class="muted small" style="margin:10px 0">${nEx} упр. · ${nSets} подх. · примерно ${Math.round(nSets * 3.2 / 5) * 5} мин</div>
+      <button class="btn primary" data-act="start-plan" data-day="${d}" ${busy ? 'disabled' : ''}>${busy ? 'Сначала заверши текущую тренировку' : 'Начать эту тренировку'}</button>`;
+    h += `</div>`;
+  });
+  const used = new Set(db.plan.days.flat());
+  const missing = GROUPS.filter(g => !used.has(g.id)).map(g => g.name);
+  if (missing.length) h += `<div class="card"><b>Не попали в план:</b> <span class="muted">${missing.join(', ')}. Добавь их в любой день, если хочешь тренировать.</span></div>`;
+  h += `<div class="card"><h2>Как тренироваться</h2><ol class="rules">
+      <li><b>Разминка.</b> Перед первым упражнением сделай 2–3 лёгких подхода с постепенным набором веса.</li>
+      <li><b>Вес.</b> Подбирай так, чтобы в конце подхода оставалось 1–2 повтора в запасе. Последний подход упражнения можно делать почти до отказа.</li>
+      <li><b>Прогресс.</b> Работай в указанном диапазоне повторов. Когда во всех подходах дошёл до верхней границы, в следующий раз добавь 2,5–5 кг. Приложение подскажет.</li>
+      <li><b>Отдых.</b> В тяжёлых базовых упражнениях 2–3 минуты, в остальных 1–2 минуты.</li>
+      <li><b>Восстановление.</b> Между тренировками хотя бы один день отдыха, например пн, ср, пт.</li>
+    </ol></div>
+    <div class="card"><details><summary>На чём основан план</summary><ol class="rules">
+      <li><b>Порядок и повторы.</b> Сначала тяжёлое базовое упражнение на 6–8 повторов, затем вспомогательные на 8–12 и изолирующие на 12–20, с двойной прогрессией. Так устроена популярная программа <a href="https://www.liftosaur.com/programs/metallicadpappl" target="_blank" rel="noopener">Push/Pull/Legs с Reddit</a>.</li>
+      <li><b>Подходы и отдых.</b> 2–4 подхода на упражнение близко к отказу, отдых 2–3 минуты в базе и 1–2 в изоляции, как в программе Джеффа Ниппарда, которую <a href="https://barbend.com/jeff-nippard-pure-bodybuilding-program" target="_blank" rel="noopener">разбирал доктор Майк Израетел</a>.</li>
+      <li><b>Объём.</b> Около 9–13 подходов на группу в неделю. Это стартовый уровень по системе <a href="https://rpstrength.com/training-volume-landmarks-muscle-growth/" target="_blank" rel="noopener">Renaissance Periodization</a>, дальше его можно повышать.</li>
+      <li><b>Сочетания мышц.</b> Одна большая группа плюс маленькая на тренировку, как советует <a href="https://www.mentoday.ru/fitness/training/kakie-myshechnye-gruppy-nado-prorabatyvat-vmeste-dlya-maksimalnogo-rosta/" target="_blank" rel="noopener">тренер Гэвин Уолш</a>. Он же предупреждает, что спина и ноги в один день дают очень тяжёлую тренировку.</li>
+      <li><b>Частота.</b> По <a href="https://pubmed.ncbi.nlm.nih.gov/27102172/" target="_blank" rel="noopener">обзору Шонфельда 2016 года</a> тренировать мышцу дважды в неделю выгоднее, чем один раз. <a href="https://mennohenselmans.com/?p=8631" target="_blank" rel="noopener">Более поздний анализ</a> показал, что при равном недельном объёме частота почти не важна. Поэтому сплит «каждая группа раз в неделю» рабочий, если не пропускать подходы.</li>
+    </ol></details></div>`;
   return h + `</main>`;
 }
 
@@ -285,6 +400,7 @@ function viewMore() {
 function render() {
   const v = state.view;
   app.innerHTML = v === 'workout' ? viewWorkout(state.param)
+    : v === 'plan' ? viewPlan()
     : v === 'exercises' ? viewExercises()
     : v === 'exercise' ? viewExercise(state.param)
     : v === 'more' ? viewMore() : viewHome();
@@ -315,6 +431,20 @@ app.addEventListener('click', ev => {
       const nw = { id: uid(), date: new Date().toISOString(), done: false, exercises: [] };
       db.workouts.push(nw); save(); go('workout', nw.id); break;
     }
+    case 'start-plan': {
+      if (active()) return toast('Сначала заверши текущую тренировку');
+      const d = +el.dataset.day, ids = db.plan.days[d];
+      const exercises = buildDay(ids).flatMap(g => g.ex.map(e => ({ name: e.name, sets: [], target: { sets: e.sets, reps: e.reps, rest: e.rest } })));
+      if (!exercises.length) return toast('Сначала выбери группы мышц');
+      const nw = { id: uid(), date: new Date().toISOString(), done: false, planDay: d, title: `День ${d + 1} · ${dayName(ids)}`, exercises };
+      db.workouts.push(nw); save(); go('workout', nw.id); break;
+    }
+    case 'toggle-group': {
+      const ids = db.plan.days[+el.dataset.day], g = el.dataset.group, y = window.scrollY;
+      const k = ids.indexOf(g);
+      if (k >= 0) ids.splice(k, 1); else ids.push(g);
+      save(); render(); window.scrollTo(0, y); break;
+    }
     case 'open': go('workout', el.dataset.id); break;
     case 'home': go('home'); break;
     case 'tab-exercises': go('exercises'); break;
@@ -323,7 +453,9 @@ app.addEventListener('click', ev => {
     case 'finish': {
       w.exercises = w.exercises.filter(e => e.sets.length);
       if (!w.exercises.length) { db.workouts = db.workouts.filter(x => x.id !== w.id); save(); toast('Пустая тренировка удалена'); return go('home'); }
-      w.done = true; save(); toast('Тренировка сохранена 💪'); go('home'); break;
+      w.done = true;
+      if (w.planDay >= 0) db.plan.next = (w.planDay + 1) % db.plan.days.length;
+      save(); toast('Тренировка сохранена 💪'); go('home'); break;
     }
     case 'reopen': {
       const cur = active();
