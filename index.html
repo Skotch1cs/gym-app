@@ -15,10 +15,11 @@
 :root {
   --bg: #0f1115; --card: #1a1d24; --card2: #232731; --text: #f1f3f7; --muted: #8b93a3;
   --accent: #ff7a45; --accent-text: #1a0d06; --danger: #ff5c5c; --line: #2c313c; --good: #4cd18a;
+  --finish: #4cd18a; --finish-text: #06281c; --swap: #fbbf24; --info: #38bdf8;
 }
 @media (prefers-color-scheme: light) {
   :root { --bg: #f3f4f7; --card: #ffffff; --card2: #eef0f4; --text: #14161b; --muted: #677083;
-    --line: #e1e4ea; --accent-text: #ffffff; }
+    --line: #e1e4ea; --accent-text: #ffffff; --finish: #12a36b; --finish-text: #ffffff; --swap: #b45309; --info: #0369a1; }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -38,9 +39,11 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: va
 button { font: inherit; cursor: pointer; }
 .btn { border: 0; border-radius: 12px; padding: 14px 16px; font-weight: 600; background: var(--card2); color: var(--text); width: 100%; }
 .btn.primary { background: var(--accent); color: var(--accent-text); }
+.btn.finish { background: var(--finish); color: var(--finish-text); }
 .btn.danger { background: none; color: var(--danger); }
 .btn.sm { width: auto; padding: 10px 14px; border-radius: 10px; }
 .icon-btn { background: none; border: 0; color: var(--muted); font-size: 20px; padding: 4px 8px; line-height: 1; }
+.icon-btn.del { color: var(--danger); }
 input { font: inherit; color: var(--text); background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; width: 100%; min-width: 0; font-size: 17px; }
 input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .set { display: flex; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); gap: 10px; }
@@ -59,6 +62,8 @@ input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .info img { width: 100%; aspect-ratio: 724 / 240; border-radius: 10px; display: block; margin: 8px 0; background: var(--card2); }
 .swap-title { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 600; margin-top: 10px; }
 .linkbtn { background: none; border: 0; color: var(--accent); font-size: 14px; font-weight: 600; padding: 8px 0 4px; margin-right: 18px; }
+.linkbtn.info { color: var(--info); }
+.linkbtn.swap { color: var(--swap); }
 .target { font-size: 13px; color: var(--accent); margin-top: 2px; font-weight: 600; }
 .hint-up { font-size: 13px; color: var(--good); margin-top: 2px; font-weight: 600; }
 .rules { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
@@ -417,7 +422,7 @@ function viewWorkout(id) {
   const w = db.workouts.find(x => x.id === id);
   if (!w) return go('home');
   let h = `<header><button class="back" data-act="home">‹ Назад</button><span class="grow"></span>
-    ${w.done ? '' : `<button class="btn primary sm" data-act="finish" data-id="${w.id}">Завершить</button>`}</header>
+    ${w.done ? '' : `<button class="btn finish sm" data-act="finish" data-id="${w.id}">Завершить</button>`}</header>
     <main><h1 style="font-size:26px;margin:0 0 4px">${esc(fmtDate(w.date))}</h1>
     ${w.title ? `<div class="target" style="font-size:15px">${esc(w.title)}</div>` : ''}
     <div class="muted" style="margin-bottom:14px">${w.done ? 'Завершена' : 'Идёт тренировка'} · ${fmtNum(Math.round(volume(w)))} кг тоннаж</div>`;
@@ -433,17 +438,17 @@ function viewWorkout(id) {
       ${addWeight ? `<div class="hint-up">↑ В прошлый раз все подходы по ${t.reps[1]}+ повторов: добавь 2,5–5 кг</div>` : ''}
       <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div>
       ${other ? `<div class="prev">В прошлый раз вместо него: ${esc(other.name)} (${esc(fmtDate(other.date, false))}): ${setsText(other.sets)}</div>` : ''}</div>
-      <button class="icon-btn" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
+      <button class="icon-btn del" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
     const options = w.done ? [] : optionsFor(ex.slot || ex.name, ex.name, w.exercises.map(x => x.name));
     const kInfo = `w|${i}|info`, kSwap = `w|${i}|swap`;
-    if (INFO[ex.name] || options.length) h += `<div>${INFO[ex.name] ? `<button class="linkbtn" data-act="toggle-panel" data-key="${kInfo}">${openKey === kInfo ? 'Скрыть технику' : 'Как делать'}</button>` : ''}
-      ${options.length ? `<button class="linkbtn" data-act="toggle-panel" data-key="${kSwap}">${openKey === kSwap ? 'Не менять' : 'Заменить'}</button>` : ''}</div>`;
+    if (INFO[ex.name] || options.length) h += `<div>${INFO[ex.name] ? `<button class="linkbtn info" data-act="toggle-panel" data-key="${kInfo}">${openKey === kInfo ? 'Скрыть технику' : 'Как делать'}</button>` : ''}
+      ${options.length ? `<button class="linkbtn swap" data-act="toggle-panel" data-key="${kSwap}">${openKey === kSwap ? 'Не менять' : 'Заменить'}</button>` : ''}</div>`;
     if (openKey === kInfo) h += `<div class="panel">${infoHtml(ex.name)}</div>`;
     if (openKey === kSwap) h += `<div class="panel">${swapChips(options, 'w-swap', `data-i="${i}"`)}</div>`;
     ex.sets.forEach((s, j) => {
       const isPR = best > 0 && s.w > best && ex.sets.findIndex(x => x.w === s.w) === j;
       h += `<div class="set"><span class="n">${j + 1}</span><span class="v">${fmtNum(s.w)} кг × ${s.r}${isPR ? '<span class="pr">РЕКОРД</span>' : ''}</span>
-        <button class="icon-btn" data-act="del-set" data-i="${i}" data-j="${j}" aria-label="Удалить подход">−</button></div>`;
+        <button class="icon-btn del" data-act="del-set" data-i="${i}" data-j="${j}" aria-label="Удалить подход">−</button></div>`;
     });
     h += `<form class="addset" data-i="${i}">
       <div><label>Вес, кг</label><input name="w" inputmode="decimal" value="${last ? fmtNum(last.w) : ''}" placeholder="0"></div>
