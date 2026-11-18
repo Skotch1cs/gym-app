@@ -48,6 +48,8 @@ input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .set .v { flex: 1; font-variant-numeric: tabular-nums; font-size: 17px; }
 .addset { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; align-items: end; }
 .addset label { font-size: 12px; color: var(--muted); display: block; margin: 0 0 4px 2px; }
+.profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.profile-grid label { font-size: 12px; color: var(--muted); display: block; margin: 0 0 4px 2px; }
 .prev { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .pr { color: var(--good); font-size: 12px; font-weight: 700; margin-left: 6px; }
 .list-item { display: flex; align-items: center; gap: 10px; cursor: pointer; }
@@ -88,10 +90,15 @@ const DEFAULT_EXERCISES = ['Жим лёжа', 'Присед со штангой'
   'Сгибания ног', 'Подъём на носки', 'Махи гантелями в стороны'];
 
 // ---------- data ----------
+const DEFAULT_PROFILE = { weight: 90, height: 185, age: 27 };
 let db = load();
+function withProfile(d) {
+  d.profile = Object.assign({}, DEFAULT_PROFILE, d.profile);
+  return d;
+}
 function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.workouts)) return d; } catch (e) {}
-  return { workouts: [] };
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.workouts)) return withProfile(d); } catch (e) {}
+  return withProfile({ workouts: [] });
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Не удалось сохранить'); }
@@ -253,7 +260,17 @@ function chart(pts) {
 
 function viewMore() {
   const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  const pr = db.profile;
   return `<header><h1>Ещё</h1></header><main>
+    <div class="card"><h2>Профиль</h2>
+      <form id="profile">
+        <div class="profile-grid">
+          <div><label>Вес, кг</label><input name="weight" inputmode="decimal" value="${fmtNum(pr.weight)}"></div>
+          <div><label>Рост, см</label><input name="height" inputmode="decimal" value="${fmtNum(pr.height)}"></div>
+          <div><label>Возраст</label><input name="age" inputmode="numeric" value="${pr.age}"></div>
+        </div>
+        <button class="btn primary" type="submit" style="margin-top:12px">Сохранить</button>
+      </form></div>
     ${standalone ? '' : `<div class="card"><h2>Установить на iPhone</h2><div class="muted" style="margin-top:6px">
       Открой эту страницу в Safari, нажми «Поделиться» (квадрат со стрелкой) и выбери «На экран Домой». Приложение будет открываться как обычное и работать без интернета.</div></div>`}
     <div class="card"><h2>Резервная копия</h2><div class="muted" style="margin:6px 0 12px">
@@ -338,6 +355,12 @@ app.addEventListener('submit', ev => {
   ev.preventDefault();
   const f = ev.target, w = db.workouts.find(x => x.id === state.param);
   if (f.id === 'addex') return addExercise(w, f.name.value);
+  if (f.id === 'profile') {
+    const weight = parseNum(f.weight.value), height = parseNum(f.height.value), age = parseInt(f.age.value, 10);
+    if (!(weight >= 20 && weight <= 400) || !(height >= 100 && height <= 250) || !(age >= 10 && age <= 110)) return toast('Проверь вес, рост и возраст');
+    db.profile = { weight, height, age };
+    save(); render(); return toast('Профиль сохранён');
+  }
   const wt = parseNum(f.w.value), r = parseInt(f.r.value, 10);
   if (!(wt >= 0) || !(r > 0)) return toast('Укажи вес и повторы');
   const ex = w.exercises[+f.dataset.i];
@@ -355,7 +378,7 @@ app.addEventListener('change', ev => {
     const d = JSON.parse(t);
     if (!d || !Array.isArray(d.workouts)) throw new Error();
     if (!confirm(`Заменить текущие данные копией (${d.workouts.length} тренировок)?`)) return;
-    db = d; save(); toast('Данные восстановлены'); render();
+    db = withProfile(d); save(); toast('Данные восстановлены'); render();
   }).catch(() => toast('Не получилось прочитать файл'));
 });
 
