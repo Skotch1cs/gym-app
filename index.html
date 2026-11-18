@@ -52,6 +52,13 @@ input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .plan-ex { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; align-items: baseline; }
 .plan-ex .t { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 14px; }
 .plan-group { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--accent); font-weight: 700; margin: 14px 0 4px; }
+.plan-ex { cursor: pointer; }
+.plan-ex .chev { font-size: 16px; width: 10px; text-align: center; }
+.tag { font-size: 11px; color: var(--good); font-weight: 700; text-transform: uppercase; margin-left: 4px; }
+.panel { padding: 2px 0 10px; }
+.info img { width: 100%; aspect-ratio: 724 / 240; border-radius: 10px; display: block; margin: 8px 0; background: var(--card2); }
+.swap-title { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 600; margin-top: 10px; }
+.linkbtn { background: none; border: 0; color: var(--accent); font-size: 14px; font-weight: 600; padding: 8px 0 4px; margin-right: 18px; }
 .target { font-size: 13px; color: var(--accent); margin-top: 2px; font-weight: 600; }
 .hint-up { font-size: 13px; color: var(--good); margin-top: 2px; font-weight: 600; }
 .rules { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
@@ -97,46 +104,180 @@ svg.chart { width: 100%; height: 160px; display: block; }
 <script>
 'use strict';
 const KEY = 'gym-diary-v1';
-// Plan library. Exercises in each group go from most to least important,
-// so a shorter workout keeps the key ones. reps: [from, to], rest in minutes.
+// name: [image file in img/, short how-to]
+const INFO = {
+  "Жим лёжа": ["barbell-bench-press-medium-grip", "Лёжа на скамье, лопатки сведены, стопы упираются в пол. Опусти штангу к середине груди и выжми вверх, не отрывая таз."],
+  "Жим гантелей лёжа": ["dumbbell-bench-press", "Лёжа на скамье, гантели над грудью. Опусти их по бокам от груди до лёгкого растяжения и выжми вверх, слегка сводя."],
+  "Жим лёжа в Смите": ["smith-machine-bench-press", "Как жим штанги, но гриф идёт по направляющим. Поставь скамью так, чтобы гриф опускался на середину груди."],
+  "Жим от груди в тренажёре": ["machine-bench-press", "Сядь так, чтобы рукояти были на уровне середины груди. Выжми вперёд, не выпрямляя локти до щелчка, и плавно верни."],
+  "Жим гантелей на наклонной": ["incline-dumbbell-press", "Скамья под углом 30–45°. Опусти гантели к верху груди и выжми вверх. Нагружает верх грудных."],
+  "Жим штанги на наклонной": ["barbell-incline-bench-press-medium-grip", "Скамья под углом 30–45°. Опусти штангу к верхней части груди и выжми вверх, локти под грифом."],
+  "Жим в Смите на наклонной": ["smith-machine-incline-bench-press", "Наклонная скамья под грифом Смита. Опускай гриф к верху груди и выжимай вверх без рывков."],
+  "Жим в рычажном тренажёре на наклонной": ["leverage-incline-chest-press", "Сядь в тренажёр, рукояти на уровне верха груди. Выжми вверх и вперёд, медленно верни назад."],
+  "Сведение рук в тренажёре": ["butterfly", "Тренажёр «бабочка». Спина прижата, локти чуть согнуты. Сведи руки перед грудью, задержись на секунду и плавно разведи."],
+  "Сведение рук в кроссовере": ["cable-crossover", "Стоя между блоками, рукояти сверху. Чуть наклонись и сведи руки перед собой по дуге, локти слегка согнуты."],
+  "Разводка гантелей лёжа": ["dumbbell-flyes", "Лёжа на скамье, руки чуть согнуты. Разведи гантели в стороны до растяжения груди и сведи обратно по дуге."],
+  "Отжимания на брусьях": ["dips-chest-version", "Наклони корпус вперёд, локти слегка в стороны. Опустись до прямого угла в локтях и выжми себя вверх."],
+  "Отжимания от пола": ["pushups", "Упор лёжа, тело прямое, ладони чуть шире плеч. Опустись грудью почти до пола и отожмись."],
+  "Разводка гантелей на наклонной": ["incline-dumbbell-flyes", "Скамья под углом около 30°. Разведи гантели в стороны до растяжения и сведи над грудью по дуге."],
+  "Тяга штанги в наклоне": ["bent-over-barbell-row", "Наклон корпуса около 45°, спина прямая, колени чуть согнуты. Тяни штангу к низу живота, сводя лопатки."],
+  "Тяга гантели одной рукой": ["one-arm-dumbbell-row", "Упрись коленом и рукой в скамью, спина ровная. Тяни гантель к поясу, локоть идёт вдоль корпуса."],
+  "Тяга Т-грифа": ["t-bar-row-with-handle", "Стоя над грифом в наклоне, спина прямая. Тяни рукоять к животу и медленно опускай."],
+  "Тяга в наклоне в Смите": ["smith-machine-bent-over-row", "Наклон около 45°, спина прямая. Тяни гриф Смита к низу живота, сводя лопатки."],
+  "Тяга верхнего блока": ["wide-grip-lat-pulldown", "Широкий хват, бёдра под валиками. Тяни рукоять к верху груди, локти вниз, корпус почти не раскачивай."],
+  "Подтягивания": ["pullups", "Хват чуть шире плеч. Подтянись подбородком выше перекладины и опустись до почти прямых рук без рывков."],
+  "Тяга верхнего блока узким хватом": ["v-bar-pulldown", "Узкая V-рукоять, ладони друг к другу. Тяни к верху груди, слегка отклонившись назад."],
+  "Тяга верхнего блока обратным хватом": ["underhand-cable-pulldowns", "Хват снизу на ширине плеч. Тяни рукоять к верху груди, локти идут вдоль корпуса."],
+  "Тяга горизонтального блока": ["seated-cable-rows", "Сидя, спина прямая, колени чуть согнуты. Тяни рукоять к животу, сводя лопатки, и плавно возвращай."],
+  "Тяга в рычажном тренажёре": ["leverage-iso-row", "Грудь упирается в подушку. Тяни рукояти к себе, сводя лопатки, и медленно возвращай."],
+  "Тяга гантелей лёжа на наклонной скамье": ["dumbbell-incline-row", "Ляг грудью на наклонную скамью. Тяни гантели к поясу, сводя лопатки. Поясница при этом разгружена."],
+  "Пуловер на верхнем блоке": ["straight-arm-pulldown", "Стоя лицом к блоку, руки почти прямые. Потяни рукоять по дуге к бёдрам за счёт широчайших."],
+  "Пуловер с канатом на блоке": ["rope-straight-arm-pulldown", "Как пуловер с прямой рукоятью, но с канатом: тяни прямыми руками по дуге к бёдрам, в конце разводи концы каната."],
+  "Пуловер с гантелью": ["straight-arm-dumbbell-pullover", "Лёжа на скамье, гантель над грудью. Опусти её за голову до растяжения и верни обратно почти прямыми руками."],
+  "Присед со штангой": ["barbell-squat", "Штанга на трапециях, стопы на ширине плеч. Опустись до параллели бёдер с полом, спина прямая, колени смотрят в сторону носков."],
+  "Присед в Смите": ["smith-machine-squat", "Гриф на трапециях, стопы чуть впереди. Присядь до параллели и встань, не отрывая пятки."],
+  "Гакк-присед": ["hack-squat", "Спина прижата к подушке тренажёра, стопы на платформе. Опустись до прямого угла в коленях и выжми платформу."],
+  "Гоблет-присед": ["goblet-squat", "Держи гирю или гантель у груди. Присядь глубоко, локти между коленями, спина прямая, и встань."],
+  "Румынская тяга": ["romanian-deadlift", "Колени чуть согнуты, спина прямая. Отводи таз назад и опускай штангу вдоль ног до середины голени, затем выпрямись."],
+  "Румынская тяга с гантелями": ["stiff-legged-dumbbell-deadlift", "То же движение с гантелями: таз назад, спина прямая, гантели скользят вдоль ног."],
+  "Тяга на прямых ногах в Смите": ["smith-machine-stiff-legged-deadlift", "Гриф Смита в опущенных руках. Отводи таз назад с прямой спиной и опускай гриф вдоль ног."],
+  "Гиперэкстензия": ["hyperextensions-back-extensions", "Бёдра на подушке, пятки под валиками. Опустись вниз с прямой спиной и поднимись до прямой линии тела."],
+  "Жим ногами": ["leg-press", "Стопы на платформе на ширине плеч. Опусти платформу до прямого угла в коленях и выжми, не выпрямляя ноги до конца. Поясницу не отрывай."],
+  "Выпады с гантелями": ["dumbbell-lunges", "Шагни вперёд и опустись, пока оба колена не согнутся под прямым углом. Оттолкнись и вернись."],
+  "Болгарские выпады": ["split-squat-with-dumbbells", "Задняя нога на скамье. Приседай на передней ноге до параллели бедра с полом, корпус ровный."],
+  "Разгибания ног": ["leg-extensions", "Сидя в тренажёре, валик на голеностопах. Разогни ноги до конца, задержись на секунду и плавно опусти."],
+  "Сгибания ног": ["lying-leg-curls", "Лёжа в тренажёре, валик чуть выше пяток. Согни ноги, подтягивая валик к ягодицам, таз не отрывай."],
+  "Сгибания ног сидя": ["seated-leg-curl", "Сидя в тренажёре, валик на голенях сзади. Согни ноги под себя и плавно верни."],
+  "Сгибания ног стоя": ["standing-leg-curl", "Стоя в тренажёре, сгибай одну ногу, подтягивая валик к ягодице. Потом поменяй ногу."],
+  "«Доброе утро» со штангой": ["stiff-leg-barbell-good-morning", "Штанга на плечах, колени чуть согнуты. Наклонись вперёд с прямой спиной, отводя таз назад, и выпрямись. Бери лёгкий вес."],
+  "Подъём на носки": ["standing-calf-raises", "Стоя в тренажёре, носки на платформе. Поднимись на носки как можно выше, задержись и опусти пятки ниже платформы."],
+  "Подъём на носки сидя": ["seated-calf-raise", "Сидя в тренажёре, валик на коленях. Поднимай и опускай пятки с полной амплитудой."],
+  "Подъём на носки в жиме ногами": ["calf-press-on-the-leg-press-machine", "В тренажёре для жима ногами поставь на край платформы только носки. Выжимай платформу стопами, ноги почти прямые."],
+  "Подъём на носки с гантелями": ["standing-dumbbell-calf-raise", "Стоя с гантелями, носки на возвышении. Поднимись на носки и медленно опусти пятки вниз."],
+  "Жим гантелей сидя": ["dumbbell-shoulder-press", "Сидя, спина прижата к спинке, гантели на уровне ушей. Выжми вверх и опусти до прямого угла в локтях."],
+  "Жим штанги стоя": ["standing-military-press", "Штанга на груди, хват чуть шире плеч. Выжми над головой, пресс и ягодицы напряжены, не отклоняйся назад."],
+  "Жим в тренажёре на плечи": ["machine-shoulder-military-press", "Сидя в тренажёре, рукояти на уровне плеч. Выжми вверх и плавно опусти."],
+  "Жим Арнольда": ["arnold-dumbbell-press", "Гантели перед собой ладонями к себе. Выжимая вверх, разворачивай ладони от себя, на опускании верни обратно."],
+  "Махи гантелями в стороны": ["side-lateral-raise", "Стоя, локти чуть согнуты. Подними гантели через стороны до уровня плеч и медленно опусти. Без рывков корпусом."],
+  "Махи в стороны на блоке": ["standing-low-pulley-deltoid-raise", "Стоя боком к нижнему блоку, рукоять в дальней руке. Подними руку через сторону до уровня плеча и плавно опусти. Потом поменяй руку."],
+  "Махи гантелями в стороны сидя": ["seated-side-lateral-raise", "Сидя на скамье, подними гантели через стороны до уровня плеч. Сидя сложнее помогать себе корпусом."],
+  "Тяга штанги к подбородку": ["upright-barbell-row", "Хват чуть шире плеч. Тяни штангу вдоль корпуса до уровня груди, локти выше кистей."],
+  "Тяга к лицу на блоке": ["face-pull", "Канат на верхнем блоке. Тяни к лицу, разводя концы каната и поднимая локти. Работают задние дельты."],
+  "Обратные разведения в тренажёре": ["reverse-machine-flyes", "Сядь лицом к «бабочке». Разведи почти прямые руки назад, сводя лопатки, и плавно верни."],
+  "Разведения на блоке на заднюю дельту": ["cable-rear-delt-fly", "Стоя у верхнего блока, возьми рукоять дальней рукой. Отведи почти прямую руку в сторону и назад на уровне плеча. Потом поменяй руку."],
+  "Разведения гантелей в наклоне": ["seated-bent-over-rear-delt-raise", "Сидя, наклонись грудью к коленям. Разведи гантели в стороны, локти чуть согнуты, и медленно опусти."],
+  "Разведения гантелей лёжа на наклонной скамье": ["reverse-flyes", "Ляг грудью на наклонную скамью. Разведи гантели в стороны до уровня плеч и медленно опусти."],
+  "Сгибания на бицепс": ["barbell-curl", "Стоя со штангой или EZ-грифом, локти прижаты к корпусу. Согни руки, не раскачиваясь, и медленно опусти."],
+  "Сгибания с гантелями стоя": ["dumbbell-bicep-curl", "Стоя, локти у корпуса. Согни руки с гантелями, разворачивая ладони вверх, и медленно опусти."],
+  "Сгибания на нижнем блоке": ["standing-biceps-cable-curl", "Стоя лицом к нижнему блоку. Согни руки с рукоятью, локти неподвижны, и плавно опусти."],
+  "Сгибания в тренажёре": ["machine-bicep-curl", "Сидя в тренажёре, плечи на подушке. Согни руки до конца и медленно разогни."],
+  "Сгибания с гантелями на наклонной скамье": ["incline-dumbbell-curl", "Скамья под углом 45–60°, руки свисают вниз. Сгибай руки, не выводя локти вперёд. Хорошо растягивает бицепс."],
+  "Сгибания на скамье Скотта": ["preacher-curl", "Плечи лежат на наклонной подушке. Согни руки со штангой и медленно опусти почти до прямых."],
+  "Концентрированные сгибания": ["concentration-curls", "Сидя, локоть упирается во внутреннюю сторону бедра. Согни руку с гантелью и медленно опусти."],
+  "Сгибания с гантелями сидя": ["seated-dumbbell-curl", "Сидя на скамье, спина прямая. Сгибай руки с гантелями, локти прижаты к корпусу."],
+  "«Молотки» с гантелями": ["hammer-curls", "Ладони смотрят друг на друга. Согни руки, не разворачивая кисти, локти у корпуса."],
+  "«Молотки» на блоке с канатом": ["cable-hammer-curls-rope-attachment", "Канат на нижнем блоке, ладони друг к другу. Согни руки, локти прижаты к корпусу."],
+  "Сгибания обратным хватом": ["reverse-barbell-curl", "Хват сверху на ширине плеч. Согни руки со штангой, локти неподвижны. Бери вес меньше обычного."],
+  "Разгибания на верхнем блоке": ["triceps-pushdown-rope-attachment", "Канат на верхнем блоке, локти прижаты к корпусу. Разогни руки вниз до конца, разводя концы каната, и плавно верни."],
+  "Разгибания на блоке с прямой рукоятью": ["triceps-pushdown", "Прямая рукоять на верхнем блоке, локти у корпуса. Разогни руки вниз до конца и плавно верни."],
+  "Разгибания в тренажёре": ["machine-triceps-extension", "Сидя в тренажёре, плечи на подушке. Разогни руки до конца и медленно верни."],
+  "Обратные отжимания от скамьи": ["bench-dips", "Руки на скамье за спиной, ноги впереди. Опустись, сгибая локти до прямого угла, и выжми себя вверх."],
+  "Французский жим": ["ez-bar-skullcrusher", "Лёжа на скамье с EZ-грифом. Сгибай только локти, опуская гриф ко лбу или за голову, и разогни руки."],
+  "Французский жим с гантелями": ["lying-dumbbell-tricep-extension", "Лёжа, гантели над грудью ладонями друг к другу. Опусти их к ушам, сгибая только локти, и разогни."],
+  "Жим лёжа узким хватом": ["close-grip-barbell-bench-press", "Хват на ширине плеч, локти идут вдоль корпуса. Опусти штангу к низу груди и выжми вверх."],
+  "Разгибания из-за головы на блоке": ["cable-rope-overhead-triceps-extension", "Спиной к блоку, канат за головой. Разогни руки вперёд и вверх, локти неподвижны. Растягивает длинную головку трицепса."],
+  "Разгибание гантели из-за головы": ["standing-dumbbell-triceps-extension", "Гантель двумя руками над головой. Опусти её за голову, локти смотрят вверх, и разогни руки."],
+  "Разгибания с гантелью в наклоне": ["tricep-dumbbell-kickback", "В наклоне, плечо параллельно полу. Разогни руку с гантелью назад до конца и плавно верни."],
+  "Скручивания на блоке": ["cable-crunch", "На коленях перед верхним блоком, канат у головы. Скручивайся вниз, округляя спину и подтягивая локти к коленям."],
+  "Скручивания на полу": ["crunches", "Лёжа на спине, ноги согнуты. Подними лопатки от пола, скручивая корпус, поясница прижата."],
+  "Скручивания в тренажёре": ["ab-crunch-machine", "Сидя в тренажёре для пресса. Скручивайся вперёд за счёт пресса, а не рук, и медленно возвращайся."],
+  "Скручивания на наклонной скамье": ["decline-crunch", "Ноги закреплены на наклонной скамье. Поднимай корпус, округляя спину, и опускайся без рывков."],
+  "Подъём ног в висе": ["hanging-leg-raise", "Вис на перекладине. Поднимай ноги до параллели с полом или выше без раскачки. Проще с согнутыми коленями."],
+  "Подъём ног лёжа": ["flat-bench-lying-leg-raise", "Лёжа на скамье, держись руками за край. Подними прямые ноги до вертикали и медленно опусти."],
+  "Обратные скручивания": ["reverse-crunch", "Лёжа на спине, подтяни колени к груди, отрывая таз от пола, и плавно верни."],
+  "Становая тяга": ["barbell-deadlift", "Стопы под грифом, спина прямая. Подними штангу, выпрямляя ноги и корпус одновременно, гриф скользит вдоль ног."],
+};
+// Plan library. Exercises in each group go from most to least important, so a shorter workout
+// keeps the key ones. reps: [from, to], rest in minutes, alt: substitutes for a busy machine.
 const GROUPS = [
   { id: 'chest', name: 'Грудь', n: 3, ex: [
-    { name: 'Жим лёжа', sets: 4, reps: [6, 8], rest: '2–3' },
-    { name: 'Жим гантелей на наклонной', sets: 3, reps: [8, 12], rest: '2' },
-    { name: 'Сведение рук в тренажёре', sets: 3, reps: [12, 15], rest: '1–1,5' },
-    { name: 'Отжимания на брусьях', sets: 3, reps: [8, 12], rest: '2' } ] },
+    { name: "Жим лёжа", sets: 4, reps: [6, 8], rest: '2–3',
+      alt: ["Жим гантелей лёжа", "Жим лёжа в Смите", "Жим от груди в тренажёре"] },
+    { name: "Жим гантелей на наклонной", sets: 3, reps: [8, 12], rest: '2',
+      alt: ["Жим штанги на наклонной", "Жим в Смите на наклонной", "Жим в рычажном тренажёре на наклонной"] },
+    { name: "Сведение рук в тренажёре", sets: 3, reps: [12, 15], rest: '1–1,5',
+      alt: ["Сведение рук в кроссовере", "Разводка гантелей лёжа"] },
+    { name: "Отжимания на брусьях", sets: 3, reps: [8, 12], rest: '2',
+      alt: ["Отжимания от пола", "Разводка гантелей на наклонной"] },
+  ] },
   { id: 'back', name: 'Спина', n: 3, ex: [
-    { name: 'Тяга штанги в наклоне', sets: 4, reps: [6, 8], rest: '2–3' },
-    { name: 'Тяга верхнего блока', sets: 3, reps: [8, 12], rest: '2' },
-    { name: 'Тяга горизонтального блока', sets: 3, reps: [8, 12], rest: '2' },
-    { name: 'Пуловер на верхнем блоке', sets: 3, reps: [12, 15], rest: '1–1,5' } ] },
+    { name: "Тяга штанги в наклоне", sets: 4, reps: [6, 8], rest: '2–3',
+      alt: ["Тяга гантели одной рукой", "Тяга Т-грифа", "Тяга в наклоне в Смите"] },
+    { name: "Тяга верхнего блока", sets: 3, reps: [8, 12], rest: '2',
+      alt: ["Подтягивания", "Тяга верхнего блока узким хватом", "Тяга верхнего блока обратным хватом"] },
+    { name: "Тяга горизонтального блока", sets: 3, reps: [8, 12], rest: '2',
+      alt: ["Тяга в рычажном тренажёре", "Тяга гантелей лёжа на наклонной скамье"] },
+    { name: "Пуловер на верхнем блоке", sets: 3, reps: [12, 15], rest: '1–1,5',
+      alt: ["Пуловер с канатом на блоке", "Пуловер с гантелью"] },
+  ] },
   { id: 'legs', name: 'Ноги', n: 4, ex: [
-    { name: 'Присед со штангой', sets: 4, reps: [6, 8], rest: '2–3' },
-    { name: 'Румынская тяга', sets: 3, reps: [8, 10], rest: '2–3' },
-    { name: 'Жим ногами', sets: 3, reps: [10, 12], rest: '2' },
-    { name: 'Сгибания ног', sets: 3, reps: [10, 15], rest: '1–1,5' },
-    { name: 'Подъём на носки', sets: 3, reps: [10, 15], rest: '1' } ] },
+    { name: "Присед со штангой", sets: 4, reps: [6, 8], rest: '2–3',
+      alt: ["Присед в Смите", "Гакк-присед", "Гоблет-присед"] },
+    { name: "Румынская тяга", sets: 3, reps: [8, 10], rest: '2–3',
+      alt: ["Румынская тяга с гантелями", "Тяга на прямых ногах в Смите", "Гиперэкстензия"] },
+    { name: "Жим ногами", sets: 3, reps: [10, 12], rest: '2',
+      alt: ["Выпады с гантелями", "Болгарские выпады", "Разгибания ног"] },
+    { name: "Сгибания ног", sets: 3, reps: [10, 15], rest: '1–1,5',
+      alt: ["Сгибания ног сидя", "Сгибания ног стоя", "«Доброе утро» со штангой"] },
+    { name: "Подъём на носки", sets: 3, reps: [10, 15], rest: '1',
+      alt: ["Подъём на носки сидя", "Подъём на носки в жиме ногами", "Подъём на носки с гантелями"] },
+  ] },
   { id: 'shoulders', name: 'Плечи', n: 3, ex: [
-    { name: 'Жим гантелей сидя', sets: 4, reps: [8, 10], rest: '2' },
-    { name: 'Махи гантелями в стороны', sets: 4, reps: [12, 20], rest: '1' },
-    { name: 'Тяга к лицу на блоке', sets: 3, reps: [15, 20], rest: '1' },
-    { name: 'Разведения гантелей в наклоне', sets: 3, reps: [12, 15], rest: '1' } ] },
+    { name: "Жим гантелей сидя", sets: 4, reps: [8, 10], rest: '2',
+      alt: ["Жим штанги стоя", "Жим в тренажёре на плечи", "Жим Арнольда"] },
+    { name: "Махи гантелями в стороны", sets: 4, reps: [12, 20], rest: '1',
+      alt: ["Махи в стороны на блоке", "Махи гантелями в стороны сидя", "Тяга штанги к подбородку"] },
+    { name: "Тяга к лицу на блоке", sets: 3, reps: [15, 20], rest: '1',
+      alt: ["Обратные разведения в тренажёре", "Разведения на блоке на заднюю дельту", "Разведения гантелей в наклоне"] },
+    { name: "Разведения гантелей в наклоне", sets: 3, reps: [12, 15], rest: '1',
+      alt: ["Разведения гантелей лёжа на наклонной скамье", "Обратные разведения в тренажёре", "Разведения на блоке на заднюю дельту"] },
+  ] },
   { id: 'biceps', name: 'Бицепс', n: 3, ex: [
-    { name: 'Сгибания на бицепс', sets: 3, reps: [8, 12], rest: '1,5' },
-    { name: 'Сгибания с гантелями на наклонной скамье', sets: 3, reps: [10, 12], rest: '1–1,5' },
-    { name: '«Молотки» с гантелями', sets: 3, reps: [10, 12], rest: '1–1,5' } ] },
+    { name: "Сгибания на бицепс", sets: 3, reps: [8, 12], rest: '1,5',
+      alt: ["Сгибания с гантелями стоя", "Сгибания на нижнем блоке", "Сгибания в тренажёре"] },
+    { name: "Сгибания с гантелями на наклонной скамье", sets: 3, reps: [10, 12], rest: '1–1,5',
+      alt: ["Сгибания на скамье Скотта", "Концентрированные сгибания", "Сгибания с гантелями сидя"] },
+    { name: "«Молотки» с гантелями", sets: 3, reps: [10, 12], rest: '1–1,5',
+      alt: ["«Молотки» на блоке с канатом", "Сгибания обратным хватом"] },
+  ] },
   { id: 'triceps', name: 'Трицепс', n: 3, ex: [
-    { name: 'Разгибания на верхнем блоке', sets: 3, reps: [10, 12], rest: '1,5' },
-    { name: 'Французский жим', sets: 3, reps: [8, 12], rest: '1,5' },
-    { name: 'Разгибания из-за головы на блоке', sets: 3, reps: [10, 15], rest: '1–1,5' } ] },
+    { name: "Разгибания на верхнем блоке", sets: 3, reps: [10, 12], rest: '1,5',
+      alt: ["Разгибания на блоке с прямой рукоятью", "Разгибания в тренажёре", "Обратные отжимания от скамьи"] },
+    { name: "Французский жим", sets: 3, reps: [8, 12], rest: '1,5',
+      alt: ["Французский жим с гантелями", "Жим лёжа узким хватом"] },
+    { name: "Разгибания из-за головы на блоке", sets: 3, reps: [10, 15], rest: '1–1,5',
+      alt: ["Разгибание гантели из-за головы", "Разгибания с гантелью в наклоне"] },
+  ] },
   { id: 'abs', name: 'Пресс', n: 2, ex: [
-    { name: 'Скручивания на блоке', sets: 3, reps: [10, 15], rest: '1' },
-    { name: 'Подъём ног в висе', sets: 3, reps: [8, 15], rest: '1' } ] },
+    { name: "Скручивания на блоке", sets: 3, reps: [10, 15], rest: '1',
+      alt: ["Скручивания на полу", "Скручивания в тренажёре", "Скручивания на наклонной скамье"] },
+    { name: "Подъём ног в висе", sets: 3, reps: [8, 15], rest: '1',
+      alt: ["Подъём ног лёжа", "Обратные скручивания"] },
+  ] },
 ];
 const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 const MAX_EXERCISES = 7;
-const DEFAULT_PLAN = { days: [['shoulders', 'biceps'], ['back', 'legs'], ['chest', 'triceps']], next: 0 };
-const DEFAULT_EXERCISES = [...GROUPS.flatMap(g => g.ex.map(e => e.name)), 'Становая тяга', 'Подтягивания', 'Жим стоя', 'Выпады', 'Разгибания ног'];
+const DEFAULT_PLAN = { days: [['shoulders', 'biceps'], ['back', 'legs'], ['chest', 'triceps']], next: 0, swaps: {} };
+// Which plan slot an exercise belongs to (as the main exercise or as a substitute).
+const SLOT_OF = {};
+for (const g of GROUPS) for (const e of g.ex) SLOT_OF[e.name] = e;
+for (const g of GROUPS) for (const e of g.ex) for (const a of e.alt) SLOT_OF[a] ??= e;
+// Exercises that can stand in for `current` in the slot `slotName`, leaving out ones already taken.
+function optionsFor(slotName, current, taken) {
+  const slot = SLOT_OF[slotName];
+  return slot ? [slot.name, ...slot.alt].filter(n => n !== current && !taken.includes(n)) : [];
+}
+const DEFAULT_EXERCISES = Object.keys(INFO);
 
 // Build the exercise list for a set of muscle groups: a group trained alone gets all its
 // exercises, otherwise its default count, trimmed so the workout stays at MAX_EXERCISES.
@@ -147,7 +288,14 @@ function buildDay(ids) {
   for (const floor of [2, 1]) {
     while (total() > MAX_EXERCISES && Math.max(...counts) > floor) counts[counts.lastIndexOf(Math.max(...counts))]--;
   }
-  return groups.map((g, i) => ({ group: g, ex: g.ex.slice(0, counts[i]) }));
+  const day = groups.map((g, i) => ({ group: g, ex: g.ex.slice(0, counts[i]).map(e => ({ ...e, slot: e.name })) }));
+  // Apply saved substitutions, skipping one that would repeat an exercise already in the day.
+  const used = new Set(day.flatMap(g => g.ex.map(e => e.name)));
+  for (const g of day) for (const e of g.ex) {
+    const sw = db.plan.swaps[e.slot];
+    if (sw && e.alt.includes(sw) && !used.has(sw)) { used.delete(e.name); e.name = sw; used.add(sw); }
+  }
+  return day;
 }
 const dayName = ids => GROUPS.filter(g => ids.includes(g.id)).map(g => g.name).join(', ');
 const repsText = r => `${r[0]}–${r[1]}`;
@@ -160,6 +308,7 @@ function withProfile(d) {
   if (!d.plan || !Array.isArray(d.plan.days) || !d.plan.days.length) d.plan = JSON.parse(JSON.stringify(DEFAULT_PLAN));
   d.plan.days = d.plan.days.map(day => (Array.isArray(day) ? day : []).filter(id => GROUP[id]));
   if (!(d.plan.next >= 0 && d.plan.next < d.plan.days.length)) d.plan.next = 0;
+  if (!d.plan.swaps || typeof d.plan.swaps !== 'object') d.plan.swaps = {};
   return d;
 }
 function load() {
@@ -210,7 +359,15 @@ function bestWeight(name, excludeId) {
 const app = document.getElementById('app');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let state = { view: 'home', param: null };
-function go(view, param = null) { state = { view, param }; render(); window.scrollTo(0, 0); }
+let openKey = null; // which "how to" / "replace" panel is expanded
+function go(view, param = null) { state = { view, param }; openKey = null; render(); window.scrollTo(0, 0); }
+function rerender() { const y = window.scrollY; render(); window.scrollTo(0, y); }
+function infoHtml(name) {
+  const x = INFO[name];
+  return x ? `<div class="info"><img src="img/${x[0]}.webp" alt="" loading="lazy" onerror="this.remove()"><div class="muted">${esc(x[1])}</div></div>` : '';
+}
+const swapChips = (options, act, attrs) => options.length ? `<div class="swap-title">Заменить на</div><div class="chips" style="margin-top:6px">${
+  options.map(n => `<button class="chip" data-act="${act}" ${attrs} data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
 function toast(msg) {
   const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800);
@@ -264,6 +421,12 @@ function viewWorkout(id) {
       ${addWeight ? `<div class="hint-up">↑ В прошлый раз все подходы по ${t.reps[1]}+ повторов: добавь 2,5–5 кг</div>` : ''}
       <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div></div>
       <button class="icon-btn" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
+    const options = w.done ? [] : optionsFor(ex.slot || ex.name, ex.name, w.exercises.map(x => x.name));
+    const kInfo = `w|${i}|info`, kSwap = `w|${i}|swap`;
+    if (INFO[ex.name] || options.length) h += `<div>${INFO[ex.name] ? `<button class="linkbtn" data-act="toggle-panel" data-key="${kInfo}">${openKey === kInfo ? 'Скрыть технику' : 'Как делать'}</button>` : ''}
+      ${options.length ? `<button class="linkbtn" data-act="toggle-panel" data-key="${kSwap}">${openKey === kSwap ? 'Не менять' : 'Заменить'}</button>` : ''}</div>`;
+    if (openKey === kInfo) h += `<div class="panel">${infoHtml(ex.name)}</div>`;
+    if (openKey === kSwap) h += `<div class="panel">${swapChips(options, 'w-swap', `data-i="${i}"`)}</div>`;
     ex.sets.forEach((s, j) => {
       const isPR = best > 0 && s.w > best && ex.sets.findIndex(x => x.w === s.w) === j;
       h += `<div class="set"><span class="n">${j + 1}</span><span class="v">${fmtNum(s.w)} кг × ${s.r}${isPR ? '<span class="pr">РЕКОРД</span>' : ''}</span>
@@ -287,16 +450,22 @@ function viewWorkout(id) {
 function viewPlan() {
   const busy = !!active();
   let h = `<header><h1>План</h1></header><main>
-    <div class="muted" style="margin:0 4px 12px">${db.plan.days.length} тренировки в неделю. Отметь группы мышц для каждого дня, упражнения подберутся сами.</div>`;
+    <div class="muted" style="margin:0 4px 12px">${db.plan.days.length} тренировки в неделю. Отметь группы мышц для каждого дня, упражнения подберутся сами. Нажми на упражнение, чтобы посмотреть технику или заменить его на аналог.</div>`;
   db.plan.days.forEach((ids, d) => {
     const day = buildDay(ids);
+    const dayNames = day.flatMap(g => g.ex.map(e => e.name));
     const nEx = day.reduce((a, g) => a + g.ex.length, 0), nSets = day.reduce((a, g) => a + g.ex.reduce((b, e) => b + e.sets, 0), 0);
     h += `<div class="card"><div class="row"><h2 class="grow">День ${d + 1}${d === db.plan.next ? ' <span class="pr">СЛЕДУЮЩИЙ</span>' : ''}</h2></div>
       <div class="chips">${GROUPS.map(g => `<button class="chip${ids.includes(g.id) ? ' on' : ''}" data-act="toggle-group" data-day="${d}" data-group="${g.id}">${g.name}</button>`).join('')}</div>`;
     if (!day.length) h += `<div class="muted" style="margin-top:12px">Выбери хотя бы одну группу мышц.</div>`;
     for (const g of day) {
       h += `<div class="plan-group">${g.group.name}</div>`;
-      for (const e of g.ex) h += `<div class="plan-ex"><span class="grow">${esc(e.name)}</span><span class="t">${e.sets} × ${repsText(e.reps)}</span></div>`;
+      for (const e of g.ex) {
+        const key = `p|${d}|${e.slot}`, open = openKey === key;
+        h += `<div class="plan-ex" data-act="toggle-panel" data-key="${esc(key)}"><span class="grow">${esc(e.name)}${e.name !== e.slot ? ' <span class="tag">замена</span>' : ''}</span>
+          <span class="t">${e.sets} × ${repsText(e.reps)}</span><span class="chev">${open ? '⌄' : '›'}</span></div>`;
+        if (open) h += `<div class="panel">${infoHtml(e.name)}${swapChips(optionsFor(e.slot, e.name, dayNames), 'plan-swap', `data-slot="${esc(e.slot)}"`)}</div>`;
+      }
     }
     if (day.length) h += `<div class="muted small" style="margin:10px 0">${nEx} упр. · ${nSets} подх. · примерно ${Math.round(nSets * 3.2 / 5) * 5} мин</div>
       <button class="btn primary" data-act="start-plan" data-day="${d}" ${busy ? 'disabled' : ''}>${busy ? 'Сначала заверши текущую тренировку' : 'Начать эту тренировку'}</button>`;
@@ -346,6 +515,7 @@ function viewExercise(name) {
     <div class="stats"><div class="stat"><b>${fmtNum(best)}</b><span>макс. вес, кг</span></div>
     <div class="stat"><b>${fmtNum(Math.round(best1rm))}</b><span>расч. 1ПМ, кг</span></div>
     <div class="stat"><b>${hist.length}</b><span>тренировок</span></div></div>`;
+  if (INFO[name]) h += `<div class="card" style="padding-top:4px">${infoHtml(name)}</div>`;
   if (pts.length > 1) h += `<div class="card"><div class="muted small" style="margin-bottom:6px">Максимальный вес по тренировкам</div>${chart(pts)}</div>`;
   h += `<h3>История</h3>`;
   for (const x of hist) h += `<div class="card list-item" data-act="open" data-id="${x.wid}"><div class="grow"><b>${esc(fmtDate(x.date))}</b>
@@ -434,16 +604,28 @@ app.addEventListener('click', ev => {
     case 'start-plan': {
       if (active()) return toast('Сначала заверши текущую тренировку');
       const d = +el.dataset.day, ids = db.plan.days[d];
-      const exercises = buildDay(ids).flatMap(g => g.ex.map(e => ({ name: e.name, sets: [], target: { sets: e.sets, reps: e.reps, rest: e.rest } })));
+      const exercises = buildDay(ids).flatMap(g => g.ex.map(e => ({ name: e.name, slot: e.slot, sets: [], target: { sets: e.sets, reps: e.reps, rest: e.rest } })));
       if (!exercises.length) return toast('Сначала выбери группы мышц');
       const nw = { id: uid(), date: new Date().toISOString(), done: false, planDay: d, title: `День ${d + 1} · ${dayName(ids)}`, exercises };
       db.workouts.push(nw); save(); go('workout', nw.id); break;
+    }
+    case 'toggle-panel': openKey = openKey === el.dataset.key ? null : el.dataset.key; rerender(); break;
+    case 'plan-swap': {
+      const slot = el.dataset.slot, name = el.dataset.name;
+      if (name === slot) delete db.plan.swaps[slot]; else db.plan.swaps[slot] = name;
+      save(); rerender(); toast('В плане теперь: ' + name); break;
+    }
+    case 'w-swap': {
+      const ex = w.exercises[+el.dataset.i];
+      if (ex.sets.length) return toast('Сначала удали записанные подходы');
+      ex.name = el.dataset.name; openKey = null;
+      save(); rerender(); toast('Заменено на: ' + ex.name); break;
     }
     case 'toggle-group': {
       const ids = db.plan.days[+el.dataset.day], g = el.dataset.group, y = window.scrollY;
       const k = ids.indexOf(g);
       if (k >= 0) ids.splice(k, 1); else ids.push(g);
-      save(); render(); window.scrollTo(0, y); break;
+      openKey = null; save(); render(); window.scrollTo(0, y); break;
     }
     case 'open': go('workout', el.dataset.id); break;
     case 'home': go('home'); break;
@@ -466,7 +648,7 @@ app.addEventListener('click', ev => {
     case 'del-ex': {
       const ex = w.exercises[+el.dataset.i];
       if (ex.sets.length && !confirm(`Удалить «${ex.name}» из тренировки?`)) return;
-      w.exercises.splice(+el.dataset.i, 1); save(); render(); break;
+      w.exercises.splice(+el.dataset.i, 1); openKey = null; save(); render(); break;
     }
     case 'del-workout':
       if (!confirm('Удалить тренировку целиком?')) return;
