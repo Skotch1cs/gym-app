@@ -349,6 +349,17 @@ function historyFor(name, excludeId) {
   }
   return out;
 }
+// What was done last time in the same place of the plan, when it was a different exercise
+// (a substitute). Returns null if the last time there was this same exercise.
+function lastInSlot(ex, excludeId) {
+  const slot = ex.slot || ex.name;
+  for (const w of sorted()) {
+    if (w.id === excludeId) continue;
+    const x = w.exercises.find(e => (e.slot || e.name) === slot && e.sets.length);
+    if (x) return x.name === ex.name ? null : { name: x.name, date: w.date, sets: x.sets };
+  }
+  return null;
+}
 function bestWeight(name, excludeId) {
   let best = 0;
   for (const h of historyFor(name, excludeId)) for (const s of h.sets) best = Math.max(best, s.w);
@@ -415,11 +426,13 @@ function viewWorkout(id) {
     const best = bestWeight(ex.name, w.id);
     const last = ex.sets[ex.sets.length - 1] || (prev && prev.sets[0]) || null;
     const t = ex.target;
+    const other = lastInSlot(ex, w.id);
     const addWeight = t && prev && prev.sets.length >= t.sets && prev.sets.every(x => x.r >= t.reps[1]);
     h += `<div class="card"><div class="row"><div class="grow"><h2>${esc(ex.name)}</h2>
       ${t ? `<div class="target">План: ${t.sets} × ${repsText(t.reps)} · отдых ${esc(t.rest)} мин · сделано ${ex.sets.length}/${t.sets}</div>` : ''}
       ${addWeight ? `<div class="hint-up">↑ В прошлый раз все подходы по ${t.reps[1]}+ повторов: добавь 2,5–5 кг</div>` : ''}
-      <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div></div>
+      <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div>
+      ${other ? `<div class="prev">В прошлый раз вместо него: ${esc(other.name)} (${esc(fmtDate(other.date, false))}): ${setsText(other.sets)}</div>` : ''}</div>
       <button class="icon-btn" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
     const options = w.done ? [] : optionsFor(ex.slot || ex.name, ex.name, w.exercises.map(x => x.name));
     const kInfo = `w|${i}|info`, kSwap = `w|${i}|swap`;
