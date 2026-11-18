@@ -1,4 +1,4 @@
-const CACHE = 'gym-v8';
+const CACHE = 'gym-v9';
 const IMG_CACHE = 'gym-img-v1';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 // Exercise pictures, kept in their own cache so app updates don't download them again.
@@ -29,7 +29,8 @@ self.addEventListener('fetch', e => {
   }
   // Everything else: network first, so updates arrive when online; cache as offline fallback.
   e.respondWith(
-    fetch(e.request).then(r => {
+    // Page loads skip the browser's own cache, which GitHub lets go stale for 10 minutes.
+    (e.request.mode === 'navigate' ? fetch(e.request.url, { cache: 'no-cache' }) : fetch(e.request)).then(r => {
       const copy = r.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return r;
