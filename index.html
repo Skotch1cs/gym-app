@@ -56,6 +56,10 @@ input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .plan-ex { cursor: pointer; }
 .plan-ex .chev { font-size: 16px; width: 10px; text-align: center; }
 .stat.inner { background: var(--card2); }
+.steps { margin: 10px 0 0; padding-left: 22px; font-size: 15px; }
+.steps li { margin-bottom: 10px; }
+.steps li:last-child { margin-bottom: 0; }
+ol.steps li::marker { color: var(--accent); font-weight: 700; }
 .tag { font-size: 11px; color: var(--good); font-weight: 700; text-transform: uppercase; margin-left: 4px; }
 .panel { padding: 2px 0 10px; }
 .info img { width: 100%; aspect-ratio: 724 / 240; border-radius: 10px; display: block; margin: 8px 0; background: var(--card2); }
@@ -112,7 +116,7 @@ svg.chart { width: 100%; height: 160px; display: block; }
 <script>
 'use strict';
 // Raise by one on every publish to the site: it is shown in «Ещё» and lets the app notice an update.
-const APP_VERSION = 4;
+const APP_VERSION = 5;
 const KEY = 'gym-diary-v1';
 // name: [image file in img/, short how-to]
 const INFO = {
@@ -423,6 +427,10 @@ function viewHome() {
   const a = active();
   const list = sorted().filter(w => w.done);
   let h = `<header><h1>Тренировки</h1></header><main>`;
+  if (!isInstalled() && !db.hideInstall) h += `<div class="card"><div class="row"><h2 class="grow">Установи на телефон</h2>
+      <button class="icon-btn" data-act="hide-install" aria-label="Скрыть">✕</button></div>
+    <div class="muted" style="margin:6px 0 12px">Сейчас приложение открыто в браузере. С иконки на рабочем столе оно открывается на весь экран и работает без интернета.</div>
+    <button class="btn" data-act="install" data-from="home">Как установить</button></div>`;
   if (a) h += `<div class="banner" data-act="open" data-id="${a.id}">▶ Продолжить тренировку · ${a.exercises.length} упр.</div>`;
   else {
     const n = db.plan.next, ids = db.plan.days[n];
@@ -627,11 +635,47 @@ function viewBody() {
   return h + `</div></main>`;
 }
 
+const isInstalled = () => !!(window.navigator.standalone || matchMedia('(display-mode: standalone)').matches);
+const APP_URL = location.origin + location.pathname;
+const SHARE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M12 15V3M8 7l4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>`;
+let installPrompt = null; // Android Chrome offers a one-tap install; keep its event for the button
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; if (state.view === 'install') rerender(); });
+
+function viewInstall(from) {
+  const ua = navigator.userAgent, android = /Android/i.test(ua);
+  const steps = list => `<ol class="steps">${list.map(x => `<li>${x}</li>`).join('')}</ol>`;
+  const ios = `<div class="card"><h2>iPhone</h2>${steps([
+      `Открой ссылку <b>в Safari</b>. Из Telegram, Instagram или Chrome установка не работает: там сначала нажми «Открыть в Safari».`,
+      `Нажми кнопку <b>«Поделиться»</b> ${SHARE_ICON} внизу экрана. Если её не видно, она спрятана под кнопкой с тремя точками.`,
+      `Прокрути список вниз и выбери <b>«На экран „Домой“»</b>.`,
+      `Если есть переключатель «Открывать как веб-приложение», оставь его включённым и нажми <b>«Добавить»</b>.`,
+      `На рабочем столе появится иконка <b>«Зал»</b>. Открывай приложение с неё.`])}</div>`;
+  const andr = `<div class="card"><h2>Android</h2>
+      ${installPrompt ? `<button class="btn primary" data-act="install-now" style="margin-top:10px">Установить сейчас</button><div class="muted small" style="margin:10px 0 0">Или вручную:</div>` : ''}${steps([
+      `Открой ссылку <b>в Chrome</b>.`,
+      `Нажми на <b>три точки</b> в правом верхнем углу.`,
+      `Выбери <b>«Добавить на главный экран»</b> или «Установить приложение».`,
+      `Подтверди кнопкой <b>«Установить»</b>. На рабочем столе появится иконка «Зал».`])}</div>`;
+  return `<header><button class="back" data-act="${from === 'home' ? 'home' : 'tab-more'}">‹ Назад</button></header><main>
+    <h1 style="font-size:26px;margin:0 0 6px">Как установить</h1>
+    <div class="muted" style="margin-bottom:14px">Это занимает полминуты. Магазин приложений не нужен, всё бесплатно.</div>
+    <div class="card"><div class="muted small">Ссылка на приложение</div><div style="word-break:break-all;margin:4px 0 12px">${esc(APP_URL)}</div>
+      <button class="btn" data-act="share">Поделиться ссылкой</button></div>
+    ${android ? andr + ios : ios + andr}
+    <div class="card"><h2>Важно знать</h2><ul class="steps">
+      <li>Записи хранятся только на твоём телефоне. У каждого, кто поставит приложение, они свои.</li>
+      <li>Записи в браузере и в приложении с иконки хранятся отдельно, поэтому тренировки веди в приложении с иконки.</li>
+      <li>После установки зайди во вкладку «Тело» и укажи свой вес, рост, возраст и пол.</li>
+      <li>Обновления приходят сами: над вкладками появится зелёная плашка.</li></ul></div>
+  </main>`;
+}
+
 function viewMore() {
-  const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
   return `<header><h1>Ещё</h1></header><main>
-    ${standalone ? '' : `<div class="card"><h2>Установить на iPhone</h2><div class="muted" style="margin-top:6px">
-      Открой эту страницу в Safari, нажми «Поделиться» (квадрат со стрелкой) и выбери «На экран Домой». Приложение будет открываться как обычное и работать без интернета.</div></div>`}
+    <div class="card"><h2>Установка на телефон</h2><div class="muted" style="margin:6px 0 12px">
+      ${isInstalled() ? 'Приложение уже установлено. Инструкция пригодится, чтобы поставить его на другой телефон.' : 'Пошаговая инструкция, как добавить приложение на рабочий стол iPhone или Android.'}</div>
+      <button class="btn" data-act="install" data-from="more">Инструкция по установке</button>
+      <button class="btn" data-act="share" style="margin-top:8px">Поделиться приложением</button></div>
     <div class="card"><h2>Резервная копия</h2><div class="muted" style="margin:6px 0 12px">
       Все записи хранятся только на этом телефоне. Время от времени сохраняй копию, чтобы ничего не потерять.</div>
       <button class="btn" data-act="export">Сохранить копию (файл)</button>
@@ -650,8 +694,9 @@ function render() {
     : v === 'exercises' ? viewExercises()
     : v === 'exercise' ? viewExercise(state.param)
     : v === 'body' ? viewBody()
+    : v === 'install' ? viewInstall(state.param)
     : v === 'more' ? viewMore() : viewHome();
-  const tab = v === 'workout' || v === 'home' ? 'home' : v === 'exercise' ? 'exercises' : v;
+  const tab = v === 'workout' || v === 'home' ? 'home' : v === 'exercise' ? 'exercises' : v === 'install' ? (state.param === 'home' ? 'home' : 'more') : v;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
 }
 
@@ -750,6 +795,17 @@ app.addEventListener('click', ev => {
     }
     case 'import': document.getElementById('importfile').click(); break;
     case 'update': checkUpdate(true); break;
+    case 'tab-more': go('more'); break;
+    case 'install': go('install', el.dataset.from); break;
+    case 'hide-install': db.hideInstall = true; save(); render(); break;
+    case 'install-now': if (installPrompt) { installPrompt.prompt(); installPrompt = null; } break;
+    case 'share': {
+      const data = { title: 'Дневник тренировок', text: 'Приложение для зала: план тренировок, замены упражнений и дневник веса.', url: APP_URL };
+      if (navigator.share) navigator.share(data).catch(() => {});
+      else if (navigator.clipboard) navigator.clipboard.writeText(APP_URL).then(() => toast('Ссылка скопирована'), () => toast(APP_URL));
+      else toast(APP_URL);
+      break;
+    }
   }
 });
 
