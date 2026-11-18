@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дневник тренировок</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Зал">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+:root {
+  --bg: #0f1115; --card: #1a1d24; --card2: #232731; --text: #f1f3f7; --muted: #8b93a3;
+  --accent: #ff7a45; --accent-text: #1a0d06; --danger: #ff5c5c; --line: #2c313c; --good: #4cd18a;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f3f4f7; --card: #ffffff; --card2: #eef0f4; --text: #14161b; --muted: #677083;
+    --line: #e1e4ea; --accent-text: #ffffff; }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom)); min-height: 100vh; }
+header { padding: 16px 16px 8px; display: flex; align-items: center; gap: 8px; }
+header h1 { font-size: 28px; margin: 0; flex: 1; letter-spacing: -0.5px; }
+.back { background: none; border: 0; color: var(--accent); font-size: 17px; padding: 4px 0; cursor: pointer; }
+main { padding: 0 16px 16px; }
+.card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.grow { flex: 1; min-width: 0; }
+.muted { color: var(--muted); font-size: 14px; }
+.small { font-size: 13px; }
+h2 { font-size: 18px; margin: 0; }
+h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 20px 4px 8px; font-weight: 600; }
+button { font: inherit; cursor: pointer; }
+.btn { border: 0; border-radius: 12px; padding: 14px 16px; font-weight: 600; background: var(--card2); color: var(--text); width: 100%; }
+.btn.primary { background: var(--accent); color: var(--accent-text); }
+.btn.danger { background: none; color: var(--danger); }
+.btn.sm { width: auto; padding: 10px 14px; border-radius: 10px; }
+.icon-btn { background: none; border: 0; color: var(--muted); font-size: 20px; padding: 4px 8px; line-height: 1; }
+input { font: inherit; color: var(--text); background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; width: 100%; min-width: 0; font-size: 17px; }
+input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.set { display: flex; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); gap: 10px; }
+.set .n { width: 22px; color: var(--muted); font-size: 14px; }
+.set .v { flex: 1; font-variant-numeric: tabular-nums; font-size: 17px; }
+.addset { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; align-items: end; }
+.addset label { font-size: 12px; color: var(--muted); display: block; margin: 0 0 4px 2px; }
+.prev { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.pr { color: var(--good); font-size: 12px; font-weight: 700; margin-left: 6px; }
+.list-item { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.chev { color: var(--muted); font-size: 20px; }
+.empty { text-align: center; color: var(--muted); padding: 40px 20px; }
+nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--line);
+  display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+nav button { flex: 1; background: none; border: 0; color: var(--muted); padding: 8px 0 10px; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+nav button .i { font-size: 22px; line-height: 1; }
+nav button.on { color: var(--accent); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.stat { background: var(--card); border-radius: 14px; padding: 12px; }
+.stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); }
+svg.chart { width: 100%; height: 160px; display: block; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { background: var(--card2); border: 0; color: var(--text); border-radius: 999px; padding: 8px 12px; font-size: 14px; }
+.banner { background: var(--accent); color: var(--accent-text); border-radius: 14px; padding: 14px; margin-bottom: 12px; cursor: pointer; font-weight: 600; }
+.toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 10; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="nav">
+  <button data-tab="home"><span class="i">🏋️</span>Тренировки</button>
+  <button data-tab="exercises"><span class="i">📈</span>Прогресс</button>
+  <button data-tab="more"><span class="i">⚙️</span>Ещё</button>
+</nav>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+const KEY = 'gym-diary-v1';
+const DEFAULT_EXERCISES = ['Жим лёжа', 'Присед со штангой', 'Становая тяга', 'Жим стоя', 'Подтягивания',
+  'Тяга штанги в наклоне', 'Тяга верхнего блока', 'Отжимания на брусьях', 'Жим гантелей на наклонной',
+  'Разводка гантелей', 'Сгибания на бицепс', 'Французский жим', 'Жим ногами', 'Выпады', 'Разгибания ног',
+  'Сгибания ног', 'Подъём на носки', 'Махи гантелями в стороны'];
+
+// ---------- data ----------
+let db = load();
+function load() {
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.workouts)) return d; } catch (e) {}
+  return { workouts: [] };
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Не удалось сохранить'); }
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const active = () => db.workouts.find(w => !w.done);
+const sorted = () => [...db.workouts].sort((a, b) => b.date.localeCompare(a.date));
+const fmtNum = n => (Math.round(n * 100) / 100).toString().replace('.', ',');
+const parseNum = s => parseFloat(String(s).replace(',', '.'));
+const e1rm = s => s.r === 1 ? s.w : s.w * (1 + s.r / 30); // Epley
+const volume = w => w.exercises.reduce((t, ex) => t + ex.sets.reduce((a, s) => a + s.w * s.r, 0), 0);
+function fmtDate(iso, withWeekday = true) {
+  const d = new Date(iso);
+  const opts = { day: 'numeric', month: 'long' };
+  if (withWeekday) opts.weekday = 'short';
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString('ru-RU', opts);
+}
+function allExerciseNames() {
+  const used = new Map();
+  for (const w of sorted()) for (const ex of w.exercises) if (!used.has(ex.name)) used.set(ex.name, w.date);
+  const names = [...used.keys()];
+  for (const n of DEFAULT_EXERCISES) if (!used.has(n)) names.push(n);
+  return names;
+}
+// All past sessions for an exercise (newest first), excluding a given workout.
+function historyFor(name, excludeId) {
+  const out = [];
+  for (const w of sorted()) {
+    if (w.id === excludeId) continue;
+    const ex = w.exercises.find(e => e.name === name);
+    if (ex && ex.sets.length) out.push({ date: w.date, sets: ex.sets, wid: w.id });
+  }
+  return out;
+}
+function bestWeight(name, excludeId) {
+  let best = 0;
+  for (const h of historyFor(name, excludeId)) for (const s of h.sets) best = Math.max(best, s.w);
+  return best;
+}
+
+// ---------- ui helpers ----------
+const app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let state = { view: 'home', param: null };
+function go(view, param = null) { state = { view, param }; render(); window.scrollTo(0, 0); }
+function toast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800);
+}
+const setsText = sets => sets.map(s => `${fmtNum(s.w)}×${s.r}`).join(', ');
+
+// ---------- views ----------
+function viewHome() {
+  const a = active();
+  const list = sorted().filter(w => w.done);
+  let h = `<header><h1>Тренировки</h1></header><main>`;
+  if (a) h += `<div class="banner" data-act="open" data-id="${a.id}">▶ Продолжить тренировку · ${a.exercises.length} упр.</div>`;
+  else h += `<button class="btn primary" data-act="start" style="margin-bottom:12px">+ Начать тренировку</button>`;
+  if (!list.length) h += `<div class="empty">Здесь появятся твои тренировки.<br>Нажми «Начать тренировку», когда придёшь в зал.</div>`;
+  else {
+    h += `<h3>История</h3>`;
+    for (const w of list) {
+      const sets = w.exercises.reduce((t, e) => t + e.sets.length, 0);
+      h += `<div class="card list-item" data-act="open" data-id="${w.id}"><div class="grow">
+        <h2>${esc(fmtDate(w.date))}</h2>
+        <div class="muted">${w.exercises.map(e => esc(e.name)).join(' · ') || 'Без упражнений'}</div>
+        <div class="muted small">${sets} подх. · ${fmtNum(Math.round(volume(w)))} кг общий тоннаж</div>
+      </div><span class="chev">›</span></div>`;
+    }
+  }
+  return h + `</main>`;
+}
+
+function viewWorkout(id) {
+  const w = db.workouts.find(x => x.id === id);
+  if (!w) return go('home');
+  let h = `<header><button class="back" data-act="home">‹ Назад</button><span class="grow"></span>
+    ${w.done ? '' : `<button class="btn primary sm" data-act="finish" data-id="${w.id}">Завершить</button>`}</header>
+    <main><h1 style="font-size:26px;margin:0 0 4px">${esc(fmtDate(w.date))}</h1>
+    <div class="muted" style="margin-bottom:14px">${w.done ? 'Завершена' : 'Идёт тренировка'} · ${fmtNum(Math.round(volume(w)))} кг тоннаж</div>`;
+  w.exercises.forEach((ex, i) => {
+    const prev = historyFor(ex.name, w.id)[0];
+    const best = bestWeight(ex.name, w.id);
+    const last = ex.sets[ex.sets.length - 1] || (prev && prev.sets[0]) || null;
+    h += `<div class="card"><div class="row"><div class="grow"><h2>${esc(ex.name)}</h2>
+      <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div></div>
+      <button class="icon-btn" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
+    ex.sets.forEach((s, j) => {
+      const isPR = best > 0 && s.w > best && ex.sets.findIndex(x => x.w === s.w) === j;
+      h += `<div class="set"><span class="n">${j + 1}</span><span class="v">${fmtNum(s.w)} кг × ${s.r}${isPR ? '<span class="pr">РЕКОРД</span>' : ''}</span>
+        <button class="icon-btn" data-act="del-set" data-i="${i}" data-j="${j}" aria-label="Удалить подход">−</button></div>`;
+    });
+    h += `<form class="addset" data-i="${i}">
+      <div><label>Вес, кг</label><input name="w" inputmode="decimal" value="${last ? fmtNum(last.w) : ''}" placeholder="0"></div>
+      <div><label>Повторы</label><input name="r" inputmode="numeric" value="${last ? last.r : ''}" placeholder="0"></div>
+      <button class="btn primary sm" type="submit">+ Подход</button></form></div>`;
+  });
+  h += `<div class="card"><form id="addex" class="row"><input name="name" list="exlist" placeholder="Название упражнения" autocomplete="off">
+    <button class="btn sm" type="submit">Добавить</button></form>
+    <datalist id="exlist">${allExerciseNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    <div class="chips">${allExerciseNames().filter(n => !w.exercises.some(e => e.name === n)).slice(0, 8)
+      .map(n => `<button class="chip" data-act="add-ex" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
+  h += `<button class="btn danger" data-act="del-workout" data-id="${w.id}">Удалить тренировку</button>`;
+  if (w.done) h += `<button class="btn" data-act="reopen" data-id="${w.id}" style="margin-top:8px">Продолжить эту тренировку</button>`;
+  return h + `</main>`;
+}
+
+function viewExercises() {
+  const names = [];
+  const seen = new Set();
+  for (const w of sorted()) for (const ex of w.exercises) if (ex.sets.length && !seen.has(ex.name)) { seen.add(ex.name); names.push(ex.name); }
+  let h = `<header><h1>Прогресс</h1></header><main>`;
+  if (!names.length) return h + `<div class="empty">Запиши хотя бы одну тренировку, и здесь появится прогресс по каждому упражнению.</div></main>`;
+  for (const n of names) {
+    const hist = historyFor(n);
+    h += `<div class="card list-item" data-act="ex" data-name="${esc(n)}"><div class="grow"><h2>${esc(n)}</h2>
+      <div class="muted">Макс. вес ${fmtNum(bestWeight(n))} кг · ${hist.length} трен. · последняя ${esc(fmtDate(hist[0].date, false))}</div></div><span class="chev">›</span></div>`;
+  }
+  return h + `</main>`;
+}
+
+function viewExercise(name) {
+  const hist = historyFor(name);
+  const pts = hist.slice().reverse().map(x => ({ date: x.date, max: Math.max(...x.sets.map(s => s.w)), e: Math.max(...x.sets.map(e1rm)) }));
+  const best = bestWeight(name);
+  const best1rm = Math.max(0, ...pts.map(p => p.e));
+  let h = `<header><button class="back" data-act="tab-exercises">‹ Прогресс</button></header><main>
+    <h1 style="font-size:26px;margin:0 0 12px">${esc(name)}</h1>
+    <div class="stats"><div class="stat"><b>${fmtNum(best)}</b><span>макс. вес, кг</span></div>
+    <div class="stat"><b>${fmtNum(Math.round(best1rm))}</b><span>расч. 1ПМ, кг</span></div>
+    <div class="stat"><b>${hist.length}</b><span>тренировок</span></div></div>`;
+  if (pts.length > 1) h += `<div class="card"><div class="muted small" style="margin-bottom:6px">Максимальный вес по тренировкам</div>${chart(pts)}</div>`;
+  h += `<h3>История</h3>`;
+  for (const x of hist) h += `<div class="card list-item" data-act="open" data-id="${x.wid}"><div class="grow"><b>${esc(fmtDate(x.date))}</b>
+    <div class="muted">${setsText(x.sets)}</div></div><span class="chev">›</span></div>`;
+  return h + `</main>`;
+}
+
+function chart(pts) {
+  const W = 320, H = 160, P = { l: 34, r: 10, t: 10, b: 22 };
+  const vals = pts.map(p => p.max);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (lo === hi) { lo -= 5; hi += 5; }
+  const pad = (hi - lo) * 0.1; lo = Math.max(0, lo - pad); hi += pad;
+  const x = i => P.l + (pts.length === 1 ? 0 : i * (W - P.l - P.r) / (pts.length - 1));
+  const y = v => P.t + (hi - v) * (H - P.t - P.b) / (hi - lo);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.max).toFixed(1)}`).join('');
+  const ticks = [lo, (lo + hi) / 2, hi];
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    ${ticks.map(t => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/>
+      <text x="${P.l - 6}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">${Math.round(t)}</text>`).join('')}
+    <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.max)}" r="3.5" fill="var(--accent)"/>`).join('')}
+    <text x="${P.l}" y="${H - 6}" font-size="10" fill="var(--muted)">${esc(fmtDate(pts[0].date, false))}</text>
+    <text x="${W - P.r}" y="${H - 6}" font-size="10" fill="var(--muted)" text-anchor="end">${esc(fmtDate(pts[pts.length - 1].date, false))}</text>
+  </svg>`;
+}
+
+function viewMore() {
+  const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  return `<header><h1>Ещё</h1></header><main>
+    ${standalone ? '' : `<div class="card"><h2>Установить на iPhone</h2><div class="muted" style="margin-top:6px">
+      Открой эту страницу в Safari, нажми «Поделиться» (квадрат со стрелкой) и выбери «На экран Домой». Приложение будет открываться как обычное и работать без интернета.</div></div>`}
+    <div class="card"><h2>Резервная копия</h2><div class="muted" style="margin:6px 0 12px">
+      Все записи хранятся только на этом телефоне. Время от времени сохраняй копию, чтобы ничего не потерять.</div>
+      <button class="btn" data-act="export">Сохранить копию (файл)</button>
+      <button class="btn" data-act="import" style="margin-top:8px">Восстановить из файла</button>
+      <input type="file" id="importfile" accept="application/json,.json" hidden></div>
+    <div class="muted small" style="text-align:center;margin-top:20px">Тренировок: ${db.workouts.length}</div>
+  </main>`;
+}
+
+function render() {
+  const v = state.view;
+  app.innerHTML = v === 'workout' ? viewWorkout(state.param)
+    : v === 'exercises' ? viewExercises()
+    : v === 'exercise' ? viewExercise(state.param)
+    : v === 'more' ? viewMore() : viewHome();
+  const tab = v === 'workout' || v === 'home' ? 'home' : v === 'exercise' ? 'exercises' : v;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+}
+
+// ---------- actions ----------
+function addExercise(w, name) {
+  name = name.trim().replace(/\s+/g, ' ');
+  if (!name) return;
+  const known = allExerciseNames().find(n => n.toLowerCase() === name.toLowerCase());
+  name = known || name.charAt(0).toUpperCase() + name.slice(1);
+  if (w.exercises.some(e => e.name === name)) return toast('Уже есть в тренировке');
+  w.exercises.push({ name, sets: [] });
+  save(); render();
+  const forms = app.querySelectorAll('form.addset');
+  const f = forms[forms.length - 1];
+  if (f) f.scrollIntoView({ block: 'center' });
+}
+
+app.addEventListener('click', ev => {
+  const el = ev.target.closest('[data-act]');
+  if (!el) return;
+  const a = el.dataset.act, w = state.view === 'workout' ? db.workouts.find(x => x.id === state.param) : null;
+  switch (a) {
+    case 'start': {
+      const nw = { id: uid(), date: new Date().toISOString(), done: false, exercises: [] };
+      db.workouts.push(nw); save(); go('workout', nw.id); break;
+    }
+    case 'open': go('workout', el.dataset.id); break;
+    case 'home': go('home'); break;
+    case 'tab-exercises': go('exercises'); break;
+    case 'ex': go('exercise', el.dataset.name); break;
+    case 'add-ex': addExercise(w, el.dataset.name); break;
+    case 'finish': {
+      w.exercises = w.exercises.filter(e => e.sets.length);
+      if (!w.exercises.length) { db.workouts = db.workouts.filter(x => x.id !== w.id); save(); toast('Пустая тренировка удалена'); return go('home'); }
+      w.done = true; save(); toast('Тренировка сохранена 💪'); go('home'); break;
+    }
+    case 'reopen': {
+      const cur = active();
+      if (cur && cur.id !== w.id) return toast('Сначала заверши текущую тренировку');
+      w.done = false; save(); render(); break;
+    }
+    case 'del-set': w.exercises[+el.dataset.i].sets.splice(+el.dataset.j, 1); save(); render(); break;
+    case 'del-ex': {
+      const ex = w.exercises[+el.dataset.i];
+      if (ex.sets.length && !confirm(`Удалить «${ex.name}» из тренировки?`)) return;
+      w.exercises.splice(+el.dataset.i, 1); save(); render(); break;
+    }
+    case 'del-workout':
+      if (!confirm('Удалить тренировку целиком?')) return;
+      db.workouts = db.workouts.filter(x => x.id !== el.dataset.id); save(); go('home'); break;
+    case 'export': {
+      const blob = new Blob([JSON.stringify(db, null, 1)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = `trenirovki-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000); break;
+    }
+    case 'import': document.getElementById('importfile').click(); break;
+  }
+});
+
+app.addEventListener('submit', ev => {
+  ev.preventDefault();
+  const f = ev.target, w = db.workouts.find(x => x.id === state.param);
+  if (f.id === 'addex') return addExercise(w, f.name.value);
+  const wt = parseNum(f.w.value), r = parseInt(f.r.value, 10);
+  if (!(wt >= 0) || !(r > 0)) return toast('Укажи вес и повторы');
+  const ex = w.exercises[+f.dataset.i];
+  const prevBest = bestWeight(ex.name, w.id);
+  ex.sets.push({ w: wt, r });
+  save(); render();
+  if (prevBest > 0 && wt > prevBest && ex.sets.filter(s => s.w === wt).length === 1) toast(`Новый рекорд: ${fmtNum(wt)} кг 🔥`);
+});
+
+app.addEventListener('change', ev => {
+  if (ev.target.id !== 'importfile') return;
+  const file = ev.target.files[0];
+  if (!file) return;
+  file.text().then(t => {
+    const d = JSON.parse(t);
+    if (!d || !Array.isArray(d.workouts)) throw new Error();
+    if (!confirm(`Заменить текущие данные копией (${d.workouts.length} тренировок)?`)) return;
+    db = d; save(); toast('Данные восстановлены'); render();
+  }).catch(() => toast('Не получилось прочитать файл'));
+});
+
+document.getElementById('nav').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (b) go(b.dataset.tab);
+});
+
+render();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
