@@ -140,6 +140,7 @@ const INFO = {
   "Тяга в наклоне в Смите": ["smith-machine-bent-over-row", "Наклон около 45°, спина прямая. Тяни гриф Смита к низу живота, сводя лопатки."],
   "Тяга верхнего блока": ["wide-grip-lat-pulldown", "Широкий хват, бёдра под валиками. Тяни рукоять к верху груди, локти вниз, корпус почти не раскачивай."],
   "Подтягивания": ["pullups", "Хват чуть шире плеч. Подтянись подбородком выше перекладины и опустись до почти прямых рук без рывков."],
+  "Подтягивания в гравитроне": [null, "Тренажёр с подушкой под колени. Выставь вес помощи, встань коленями на подушку и возьмись за рукояти чуть шире плеч. Подтянись подбородком выше рукоятей и плавно опустись до почти прямых рук. Чем меньше вес помощи, тем тяжелее."],
   "Тяга верхнего блока узким хватом": ["v-bar-pulldown", "Узкая V-рукоять, ладони друг к другу. Тяни к верху груди, слегка отклонившись назад."],
   "Тяга верхнего блока обратным хватом": ["underhand-cable-pulldowns", "Хват снизу на ширине плеч. Тяни рукоять к верху груди, локти идут вдоль корпуса."],
   "Тяга горизонтального блока": ["seated-cable-rows", "Сидя, спина прямая, колени чуть согнуты. Тяни рукоять к животу, сводя лопатки, и плавно возвращай."],
@@ -233,7 +234,7 @@ const GROUPS = [
     { name: "Тяга гантели одной рукой", sets: 4, reps: [8, 10], rest: '2',
       alt: ["Тяга штанги в наклоне", "Тяга Т-грифа", "Тяга в наклоне в Смите"] },
     { name: "Тяга верхнего блока", sets: 3, reps: [8, 12], rest: '2',
-      alt: ["Подтягивания", "Тяга верхнего блока узким хватом", "Тяга верхнего блока обратным хватом"] },
+      alt: ["Подтягивания", "Подтягивания в гравитроне", "Тяга верхнего блока узким хватом", "Тяга верхнего блока обратным хватом"] },
     { name: "Тяга горизонтального блока", sets: 3, reps: [8, 12], rest: '2',
       alt: ["Тяга в рычажном тренажёре", "Тяга гантелей лёжа на наклонной скамье"] },
     { name: "Пуловер на верхнем блоке", sets: 3, reps: [12, 15], rest: '1–1,5',
@@ -285,6 +286,9 @@ const GROUPS = [
   ] },
 ];
 const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
+// Exercises where the logged weight is the machine's help: less weight means harder.
+const ASSIST = new Set(["Подтягивания в гравитроне"]);
+const isAssist = name => ASSIST.has(name);
 const MAX_EXERCISES = 7;
 const DEFAULT_PLAN = { days: [['shoulders', 'biceps'], ['back', 'legs'], ['chest', 'triceps']], next: 0, swaps: {} };
 // Which plan slot an exercise belongs to (as the main exercise or as a substitute).
@@ -366,7 +370,7 @@ const sorted = () => [...db.workouts].sort((a, b) => b.date.localeCompare(a.date
 const fmtNum = n => (Math.round(n * 100) / 100).toString().replace('.', ',');
 const parseNum = s => parseFloat(String(s).replace(',', '.'));
 const e1rm = s => s.r === 1 ? s.w : s.w * (1 + s.r / 30); // Epley
-const volume = w => w.exercises.reduce((t, ex) => t + ex.sets.reduce((a, s) => a + s.w * s.r, 0), 0);
+const volume = w => w.exercises.reduce((t, ex) => t + (isAssist(ex.name) ? 0 : ex.sets.reduce((a, s) => a + s.w * s.r, 0)), 0);
 function fmtDate(iso, withWeekday = true) {
   const d = new Date(iso);
   const opts = { day: 'numeric', month: 'long' };
@@ -402,11 +406,13 @@ function lastInSlot(ex, excludeId) {
   }
   return null;
 }
+// Best weight so far: the heaviest, or for assisted exercises the least help. null if never done.
 function bestWeight(name, excludeId) {
-  let best = 0;
-  for (const h of historyFor(name, excludeId)) for (const s of h.sets) best = Math.max(best, s.w);
-  return best;
+  const all = historyFor(name, excludeId).flatMap(h => h.sets.map(s => s.w));
+  if (!all.length) return null;
+  return isAssist(name) ? Math.min(...all) : Math.max(...all);
 }
+const beats = (name, w, best) => best != null && (isAssist(name) ? w < best : best > 0 && w > best);
 
 // ---------- ui helpers ----------
 const app = document.getElementById('app');
@@ -417,7 +423,7 @@ function go(view, param = null) { state = { view, param }; openKey = null; rende
 function rerender() { const y = window.scrollY; render(); window.scrollTo(0, y); }
 function infoHtml(name) {
   const x = INFO[name];
-  return x ? `<div class="info"><img src="img/${x[0]}.webp" alt="" loading="lazy" onerror="this.remove()"><div class="muted">${esc(x[1])}</div></div>` : '';
+  return x ? `<div class="info">${x[0] ? `<img src="img/${x[0]}.webp" alt="" loading="lazy" onerror="this.remove()">` : ''}<div class="muted">${esc(x[1])}</div></div>` : '';
 }
 const swapChips = (options, act, attrs) => options.length ? `<div class="swap-title">Заменить на</div><div class="chips" style="margin-top:6px">${
   options.map(n => `<button class="chip" data-act="${act}" ${attrs} data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
@@ -474,9 +480,11 @@ function viewWorkout(id) {
     const t = ex.target;
     const other = lastInSlot(ex, w.id);
     const addWeight = t && prev && prev.sets.length >= t.sets && prev.sets.every(x => x.r >= t.reps[1]);
+    const assist = isAssist(ex.name);
     h += `<div class="card"><div class="row"><div class="grow"><h2>${esc(ex.name)}</h2>
       ${t ? `<div class="target">План: ${t.sets} × ${repsText(t.reps)} · отдых ${esc(t.rest)} мин · сделано ${ex.sets.length}/${t.sets}</div>` : ''}
-      ${addWeight ? `<div class="hint-up">↑ В прошлый раз все подходы по ${t.reps[1]}+ повторов: добавь 2,5–5 кг</div>` : ''}
+      ${assist ? `<div class="prev">Вес здесь означает помощь тренажёра: чем он меньше, тем тяжелее.</div>` : ''}
+      ${addWeight ? `<div class="hint-up">${assist ? `↓ В прошлый раз все подходы по ${t.reps[1]}+ повторов: убавь помощь на 5 кг` : `↑ В прошлый раз все подходы по ${t.reps[1]}+ повторов: добавь 2,5–5 кг`}</div>` : ''}
       <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div>
       ${other ? `<div class="prev">В прошлый раз вместо него: ${esc(other.name)} (${esc(fmtDate(other.date, false))}): ${setsText(other.sets)}</div>` : ''}</div>
       <button class="icon-btn del" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
@@ -487,12 +495,12 @@ function viewWorkout(id) {
     if (openKey === kInfo) h += `<div class="panel">${infoHtml(ex.name)}</div>`;
     if (openKey === kSwap) h += `<div class="panel">${swapChips(options, 'w-swap', `data-i="${i}"`)}</div>`;
     ex.sets.forEach((s, j) => {
-      const isPR = best > 0 && s.w > best && ex.sets.findIndex(x => x.w === s.w) === j;
+      const isPR = beats(ex.name, s.w, best) && ex.sets.findIndex(x => x.w === s.w) === j;
       h += `<div class="set"><span class="n">${j + 1}</span><span class="v">${fmtNum(s.w)} кг × ${s.r}${isPR ? '<span class="pr">РЕКОРД</span>' : ''}</span>
         <button class="icon-btn del" data-act="del-set" data-i="${i}" data-j="${j}" aria-label="Удалить подход">−</button></div>`;
     });
     h += `<form class="addset" data-i="${i}">
-      <div><label>Вес, кг</label><input name="w" inputmode="decimal" value="${last ? fmtNum(last.w) : ''}" placeholder="0"></div>
+      <div><label>${assist ? 'Помощь, кг' : 'Вес, кг'}</label><input name="w" inputmode="decimal" value="${last ? fmtNum(last.w) : ''}" placeholder="0"></div>
       <div><label>Повторы</label><input name="r" inputmode="numeric" value="${last ? last.r : ''}" placeholder="${t ? repsText(t.reps) : '0'}"></div>
       <button class="btn primary sm" type="submit">+ Подход</button></form></div>`;
   });
@@ -559,23 +567,25 @@ function viewExercises() {
   for (const n of names) {
     const hist = historyFor(n);
     h += `<div class="card list-item" data-act="ex" data-name="${esc(n)}"><div class="grow"><h2>${esc(n)}</h2>
-      <div class="muted">Макс. вес ${fmtNum(bestWeight(n))} кг · ${hist.length} трен. · последняя ${esc(fmtDate(hist[0].date, false))}</div></div><span class="chev">›</span></div>`;
+      <div class="muted">${isAssist(n) ? 'Мин. помощь' : 'Макс. вес'} ${fmtNum(bestWeight(n))} кг · ${hist.length} трен. · последняя ${esc(fmtDate(hist[0].date, false))}</div></div><span class="chev">›</span></div>`;
   }
   return h + `</main>`;
 }
 
 function viewExercise(name) {
   const hist = historyFor(name);
-  const pts = hist.slice().reverse().map(x => ({ date: x.date, max: Math.max(...x.sets.map(s => s.w)), e: Math.max(...x.sets.map(e1rm)) }));
-  const best = bestWeight(name);
+  const assist = isAssist(name);
+  const pts = hist.slice().reverse().map(x => ({ date: x.date, max: Math[assist ? 'min' : 'max'](...x.sets.map(s => s.w)), e: Math.max(...x.sets.map(e1rm)) }));
+  const best = bestWeight(name) ?? 0;
+  const maxReps = Math.max(0, ...hist.flatMap(x => x.sets.map(s => s.r)));
   const best1rm = Math.max(0, ...pts.map(p => p.e));
   let h = `<header><button class="back" data-act="tab-exercises">‹ Прогресс</button></header><main>
     <h1 style="font-size:26px;margin:0 0 12px">${esc(name)}</h1>
-    <div class="stats"><div class="stat"><b>${fmtNum(best)}</b><span>макс. вес, кг</span></div>
-    <div class="stat"><b>${fmtNum(Math.round(best1rm))}</b><span>расч. 1ПМ, кг</span></div>
+    <div class="stats"><div class="stat"><b>${fmtNum(best)}</b><span>${assist ? 'мин. помощь, кг' : 'макс. вес, кг'}</span></div>
+    ${assist ? `<div class="stat"><b>${maxReps}</b><span>макс. повторов</span></div>` : `<div class="stat"><b>${fmtNum(Math.round(best1rm))}</b><span>расч. 1ПМ, кг</span></div>`}
     <div class="stat"><b>${hist.length}</b><span>тренировок</span></div></div>`;
   if (INFO[name]) h += `<div class="card" style="padding-top:4px">${infoHtml(name)}</div>`;
-  if (pts.length > 1) h += `<div class="card"><div class="muted small" style="margin-bottom:6px">Максимальный вес по тренировкам</div>${chart(pts)}</div>`;
+  if (pts.length > 1) h += `<div class="card"><div class="muted small" style="margin-bottom:6px">${assist ? 'Вес помощи по тренировкам: чем ниже, тем лучше' : 'Максимальный вес по тренировкам'}</div>${chart(pts)}</div>`;
   h += `<h3>История</h3>`;
   for (const x of hist) h += `<div class="card list-item" data-act="open" data-id="${x.wid}"><div class="grow"><b>${esc(fmtDate(x.date))}</b>
     <div class="muted">${setsText(x.sets)}</div></div><span class="chev">›</span></div>`;
@@ -838,7 +848,7 @@ app.addEventListener('submit', ev => {
   const prevBest = bestWeight(ex.name, w.id);
   ex.sets.push({ w: wt, r });
   save(); render();
-  if (prevBest > 0 && wt > prevBest && ex.sets.filter(s => s.w === wt).length === 1) toast(`Новый рекорд: ${fmtNum(wt)} кг 🔥`);
+  if (beats(ex.name, wt, prevBest) && ex.sets.filter(s => s.w === wt).length === 1) toast(isAssist(ex.name) ? `Новый рекорд: помощь всего ${fmtNum(wt)} кг 🔥` : `Новый рекорд: ${fmtNum(wt)} кг 🔥`);
 });
 
 app.addEventListener('change', ev => {
