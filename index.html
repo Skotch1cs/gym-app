@@ -475,7 +475,7 @@ function viewWorkout(id) {
     ${w.done ? '' : `<button class="btn finish sm" data-act="finish" data-id="${w.id}">Завершить</button>`}</header>
     <main><h1 style="font-size:26px;margin:0 0 4px">${esc(fmtDate(w.date))}</h1>
     ${w.title ? `<div class="target" style="font-size:15px">${esc(w.title)}</div>` : ''}
-    <div class="muted" style="margin-bottom:14px">${w.done ? 'Завершена' : 'Идёт тренировка'} · ${fmtNum(Math.round(volume(w)))} кг тоннаж</div>`;
+    <div class="muted" style="margin-bottom:14px">${w.done ? 'Завершена, менять её уже нельзя' : 'Идёт тренировка'} · ${fmtNum(Math.round(volume(w)))} кг тоннаж</div>`;
   w.exercises.forEach((ex, i) => {
     const prev = historyFor(ex.name, w.id)[0];
     const best = bestWeight(ex.name, w.id);
@@ -490,7 +490,7 @@ function viewWorkout(id) {
       ${addWeight ? `<div class="hint-up">${assist ? `↓ В прошлый раз все подходы по ${t.reps[1]}+ повторов: убавь помощь на 5 кг` : `↑ В прошлый раз все подходы по ${t.reps[1]}+ повторов: добавь 2,5–5 кг`}</div>` : ''}
       <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div>
       ${other ? `<div class="prev">В прошлый раз вместо него: ${esc(other.name)} (${esc(fmtDate(other.date, false))}): ${setsText(other.sets)}</div>` : ''}</div>
-      <button class="icon-btn del" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button></div>`;
+      ${w.done ? '' : `<button class="icon-btn del" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button>`}</div>`;
     const options = w.done ? [] : optionsFor(ex.slot || ex.name, ex.name, w.exercises.map(x => x.name));
     const kInfo = `w|${i}|info`, kSwap = `w|${i}|swap`;
     if (INFO[ex.name] || options.length) h += `<div>${INFO[ex.name] ? `<button class="linkbtn info" data-act="toggle-panel" data-key="${kInfo}">${openKey === kInfo ? 'Скрыть технику' : 'Как делать'}</button>` : ''}
@@ -500,20 +500,20 @@ function viewWorkout(id) {
     ex.sets.forEach((s, j) => {
       const isPR = beats(ex.name, s.w, best) && ex.sets.findIndex(x => x.w === s.w) === j;
       h += `<div class="set"><span class="n">${j + 1}</span><span class="v">${fmtNum(s.w)} кг × ${s.r}${isPR ? '<span class="pr">РЕКОРД</span>' : ''}</span>
-        <button class="icon-btn del" data-act="del-set" data-i="${i}" data-j="${j}" aria-label="Удалить подход">−</button></div>`;
+        ${w.done ? '' : `<button class="icon-btn del" data-act="del-set" data-i="${i}" data-j="${j}" aria-label="Удалить подход">−</button>`}</div>`;
     });
+    if (w.done) { h += `</div>`; return; }
     h += `<form class="addset" data-i="${i}">
       <div><label>${assist ? 'Помощь, кг' : 'Вес, кг'}</label><input name="w" inputmode="decimal" value="${last ? fmtNum(last.w) : ''}" placeholder="0"></div>
       <div><label>Повторы</label><input name="r" inputmode="numeric" value="${last ? last.r : ''}" placeholder="${t ? repsText(t.reps) : '0'}"></div>
       <button class="btn primary sm" type="submit">+ Подход</button></form></div>`;
   });
-  h += `<div class="card"><form id="addex" class="row"><input name="name" list="exlist" placeholder="Название упражнения" autocomplete="off">
+  if (!w.done) h += `<div class="card"><form id="addex" class="row"><input name="name" list="exlist" placeholder="Название упражнения" autocomplete="off">
     <button class="btn sm" type="submit">Добавить</button></form>
     <datalist id="exlist">${allExerciseNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist>
     <div class="chips">${allExerciseNames().filter(n => !w.exercises.some(e => e.name === n)).slice(0, 8)
       .map(n => `<button class="chip" data-act="add-ex" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
   h += `<button class="btn danger" data-act="del-workout" data-id="${w.id}">Удалить тренировку</button>`;
-  if (w.done) h += `<button class="btn" data-act="reopen" data-id="${w.id}" style="margin-top:8px">Продолжить эту тренировку</button>`;
   return h + `</main>`;
 }
 
@@ -567,6 +567,7 @@ function viewExercises() {
   for (const w of sorted()) for (const ex of w.exercises) if (ex.sets.length && !seen.has(ex.name)) { seen.add(ex.name); names.push(ex.name); }
   let h = `<header><h1>Прогресс</h1></header><main>`;
   if (!names.length) return h + `<div class="empty">Запиши хотя бы одну тренировку, и здесь появится прогресс по каждому упражнению.</div></main>`;
+  h += `<div class="muted" style="margin:-4px 0 12px">Нажми на упражнение, чтобы открыть его график и историю.</div>`;
   for (const n of names) {
     const hist = historyFor(n);
     h += `<div class="card list-item" data-act="ex" data-name="${esc(n)}"><div class="grow"><h2>${esc(n)}</h2>
@@ -588,6 +589,7 @@ function viewExercise(name) {
     ${assist ? `<div class="stat"><b>${maxReps}</b><span>макс. повторов</span></div>` : `<div class="stat"><b>${fmtNum(Math.round(best1rm))}</b><span>расч. 1ПМ, кг</span></div>`}
     <div class="stat"><b>${hist.length}</b><span>тренировок</span></div></div>`;
   if (INFO[name]) h += `<div class="card" style="padding-top:4px">${infoHtml(name)}</div>`;
+  if (pts.length < 2) h += `<div class="card muted">График появится после второй тренировки с этим упражнением.</div>`;
   if (pts.length > 1) h += `<div class="card"><div class="muted small" style="margin-bottom:6px">${assist ? 'Вес помощи по тренировкам: чем ниже, тем лучше' : 'Максимальный вес по тренировкам'}</div>${chart(pts)}</div>`;
   h += `<h3>История</h3>`;
   for (const x of hist) h += `<div class="card list-item" data-act="open" data-id="${x.wid}"><div class="grow"><b>${esc(fmtDate(x.date))}</b>
@@ -736,6 +738,8 @@ app.addEventListener('click', ev => {
   const el = ev.target.closest('[data-act]');
   if (!el) return;
   const a = el.dataset.act, w = state.view === 'workout' ? db.workouts.find(x => x.id === state.param) : null;
+  // A finished workout is read-only: only viewing and deleting it as a whole are allowed.
+  if (w?.done && ['add-ex', 'del-set', 'del-ex', 'w-swap', 'reopen', 'finish'].includes(a)) return;
   switch (a) {
     case 'start': {
       const nw = { id: uid(), date: new Date().toISOString(), done: false, exercises: [] };
@@ -830,6 +834,7 @@ app.addEventListener('click', ev => {
 app.addEventListener('submit', ev => {
   ev.preventDefault();
   const f = ev.target, w = db.workouts.find(x => x.id === state.param);
+  if (w?.done && (f.id === 'addex' || f.classList.contains('addset'))) return;
   if (f.id === 'addex') return addExercise(w, f.name.value);
   if (f.id === 'profile') {
     const height = parseNum(f.height.value), age = parseInt(f.age.value, 10);
