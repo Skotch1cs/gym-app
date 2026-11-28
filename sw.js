@@ -1,4 +1,4 @@
-const CACHE = 'gym-v13';
+const CACHE = 'gym-v14';
 const IMG_CACHE = 'gym-img-v1';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 // Exercise pictures, kept in their own cache so app updates don't download them again.
