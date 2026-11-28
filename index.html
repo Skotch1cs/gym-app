@@ -296,10 +296,16 @@ const DEFAULT_PLAN = { days: [['shoulders', 'biceps'], ['back', 'legs'], ['chest
 const SLOT_OF = {};
 for (const g of GROUPS) for (const e of g.ex) SLOT_OF[e.name] = e;
 for (const g of GROUPS) for (const e of g.ex) for (const a of e.alt) SLOT_OF[a] ??= e;
-// Exercises that can stand in for `current` in the slot `slotName`, leaving out ones already taken.
+const GROUP_OF = {};
+for (const g of GROUPS) for (const e of g.ex) GROUP_OF[e.name] = g;
+// Exercises that can stand in for `current` in the slot `slotName`, leaving out ones already taken:
+// `near` are the slot's own substitutes, `other` the rest of the same muscle group.
 function optionsFor(slotName, current, taken) {
   const slot = SLOT_OF[slotName];
-  return slot ? [slot.name, ...slot.alt].filter(n => n !== current && !taken.includes(n)) : [];
+  if (!slot) return { near: [], other: [], group: null };
+  const g = GROUP_OF[slot.name], own = [slot.name, ...slot.alt];
+  const ok = n => n !== current && !taken.includes(n);
+  return { near: own.filter(ok), other: g.ex.flatMap(e => [e.name, ...e.alt]).filter(n => !own.includes(n) && ok(n)), group: g };
 }
 const DEFAULT_EXERCISES = Object.keys(INFO);
 
@@ -317,7 +323,7 @@ function buildDay(ids) {
   const used = new Set(day.flatMap(g => g.ex.map(e => e.name)));
   for (const g of day) for (const e of g.ex) {
     const sw = db.plan.swaps[e.slot];
-    if (sw && e.alt.includes(sw) && !used.has(sw)) { used.delete(e.name); e.name = sw; used.add(sw); }
+    if (sw && sw !== e.slot && SLOT_OF[sw] && GROUP_OF[SLOT_OF[sw].name] === g.group && !used.has(sw)) { used.delete(e.name); e.name = sw; used.add(sw); }
   }
   return day;
 }
@@ -423,14 +429,32 @@ const app = document.getElementById('app');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let state = { view: 'home', param: null };
 let openKey = null; // which "how to" / "replace" panel is expanded
+let addGroup = 'recent'; // which list the "add exercise" picker shows
 function go(view, param = null) { state = { view, param }; openKey = null; render(); window.scrollTo(0, 0); }
 function rerender() { const y = window.scrollY; render(); window.scrollTo(0, y); }
+// Exercises of a muscle group: every plan exercise with its substitutes, in plan order.
+const groupExercises = id => GROUP[id].ex.flatMap(e => [e.name, ...e.alt]);
+const OTHER_EXERCISES = Object.keys(INFO).filter(n => !SLOT_OF[n]);
+// "Add exercise" picker: a row of muscle groups, then that group's exercises as chips.
+function addPicker(w) {
+  const tabs = [['recent', 'Недавние'], ...GROUPS.map(g => [g.id, g.name]), ['other', 'Другое']];
+  const list = addGroup === 'recent' ? allExerciseNames().slice(0, 8)
+    : addGroup === 'other' ? OTHER_EXERCISES : groupExercises(addGroup);
+  const free = list.filter(n => !w.exercises.some(e => e.name === n));
+  return `<div class="swap-title" style="margin-top:12px">Или выбери из списка</div>
+    <div class="chips" style="margin-top:6px">${tabs.map(([id, name]) =>
+      `<button class="chip${addGroup === id ? ' on' : ''}" data-act="add-group" data-group="${id}">${name}</button>`).join('')}</div>
+    <div class="chips" style="margin-top:10px">${free.map(n =>
+      `<button class="chip" data-act="add-ex" data-name="${esc(n)}">+ ${esc(n)}</button>`).join('') || '<span class="muted small">Все упражнения из этого списка уже в тренировке.</span>'}</div>`;
+}
 function infoHtml(name) {
   const x = INFO[name];
   return x ? `<div class="info">${x[0] ? `<img src="img/${x[0]}.webp" alt="" loading="lazy" onerror="this.remove()">` : ''}<div class="muted">${esc(x[1])}</div></div>` : '';
 }
-const swapChips = (options, act, attrs) => options.length ? `<div class="swap-title">Заменить на</div><div class="chips" style="margin-top:6px">${
-  options.map(n => `<button class="chip" data-act="${act}" ${attrs} data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
+const swapRow = (title, names, act, attrs) => names.length ? `<div class="swap-title" style="margin-top:10px">${title}</div><div class="chips" style="margin-top:6px">${
+  names.map(n => `<button class="chip" data-act="${act}" ${attrs} data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
+const swapChips = (o, act, attrs) => swapRow('Заменить на', o.near, act, attrs) +
+  (o.group ? swapRow(`Другие упражнения: ${o.group.name.toLowerCase()}`, o.other, act, attrs) : '');
 function toast(msg) {
   const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800);
@@ -492,10 +516,11 @@ function viewWorkout(id) {
       <div class="prev">${prev ? `Прошлый раз (${esc(fmtDate(prev.date, false))}): ${setsText(prev.sets)}` : 'Первый раз'}</div>
       ${other ? `<div class="prev">В прошлый раз вместо него: ${esc(other.name)} (${esc(fmtDate(other.date, false))}): ${setsText(other.sets)}</div>` : ''}</div>
       ${w.done ? '' : `<button class="icon-btn del" data-act="del-ex" data-i="${i}" aria-label="Удалить упражнение">✕</button>`}</div>`;
-    const options = w.done ? [] : optionsFor(ex.slot || ex.name, ex.name, w.exercises.map(x => x.name));
+    const options = w.done ? { near: [], other: [] } : optionsFor(ex.slot || ex.name, ex.name, w.exercises.map(x => x.name));
+    const canSwap = options.near.length + options.other.length > 0;
     const kInfo = `w|${i}|info`, kSwap = `w|${i}|swap`;
-    if (INFO[ex.name] || options.length) h += `<div>${INFO[ex.name] ? `<button class="linkbtn info" data-act="toggle-panel" data-key="${kInfo}">${openKey === kInfo ? 'Скрыть технику' : 'Как делать'}</button>` : ''}
-      ${options.length ? `<button class="linkbtn swap" data-act="toggle-panel" data-key="${kSwap}">${openKey === kSwap ? 'Не менять' : 'Заменить'}</button>` : ''}</div>`;
+    if (INFO[ex.name] || canSwap) h += `<div>${INFO[ex.name] ? `<button class="linkbtn info" data-act="toggle-panel" data-key="${kInfo}">${openKey === kInfo ? 'Скрыть технику' : 'Как делать'}</button>` : ''}
+      ${canSwap ? `<button class="linkbtn swap" data-act="toggle-panel" data-key="${kSwap}">${openKey === kSwap ? 'Не менять' : 'Заменить'}</button>` : ''}</div>`;
     if (openKey === kInfo) h += `<div class="panel">${infoHtml(ex.name)}</div>`;
     if (openKey === kSwap) h += `<div class="panel">${swapChips(options, 'w-swap', `data-i="${i}"`)}</div>`;
     ex.sets.forEach((s, j) => {
@@ -512,8 +537,7 @@ function viewWorkout(id) {
   if (!w.done) h += `<div class="card"><form id="addex" class="row"><input name="name" list="exlist" placeholder="Название упражнения" autocomplete="off">
     <button class="btn sm" type="submit">Добавить</button></form>
     <datalist id="exlist">${allExerciseNames().map(n => `<option value="${esc(n)}">`).join('')}</datalist>
-    <div class="chips">${allExerciseNames().filter(n => !w.exercises.some(e => e.name === n)).slice(0, 8)
-      .map(n => `<button class="chip" data-act="add-ex" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
+    ${addPicker(w)}</div>`;
   h += `<button class="btn danger" data-act="del-workout" data-id="${w.id}">Удалить тренировку</button>`;
   return h + `</main>`;
 }
@@ -754,6 +778,7 @@ app.addEventListener('click', ev => {
       const nw = { id: uid(), date: new Date().toISOString(), done: false, planDay: d, title: `День ${d + 1} · ${dayName(ids)}`, exercises };
       db.workouts.push(nw); save(); go('workout', nw.id); break;
     }
+    case 'add-group': addGroup = el.dataset.group; rerender(); break;
     case 'toggle-panel': openKey = openKey === el.dataset.key ? null : el.dataset.key; rerender(); break;
     case 'set-profile': {
       const key = el.dataset.key, val = el.dataset.val;
